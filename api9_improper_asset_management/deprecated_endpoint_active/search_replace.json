@@ -10,22 +10,6 @@
       "file_path": "services/identity/src/main/java/com/crapi/controller/AuthController.java",
       "search_code": "  @PostMapping(\"/v2.7/user/login-with-token\")\n  public ResponseEntity<JwtResponse> loginWithTokenV2(\n      @Valid @RequestBody LoginWithEmailToken loginWithEmailToken) {\n    JwtResponse jwt = userService.loginWithEmailTokenV2(loginWithEmailToken);\n    if (jwt.getToken() != null && jwt.getToken().length() > 5) {\n      return ResponseEntity.status(HttpStatus.OK).body(jwt);\n    }\n    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(jwt);\n  }",
       "replace_code": "  @PostMapping(\"/v2.7/user/login-with-token\")\n  public ResponseEntity<CRAPIResponse> loginWithTokenV2(\n      @RequestBody(required = false) Object ignored) {\n    return ResponseEntity.status(HttpStatus.GONE)\n        .body(\n            new CRAPIResponse(\n                \"This endpoint has been permanently retired for security reasons.\"\n                    + \" Use POST /identity/api/auth/login instead.\",\n                410));\n  }"
-    },
-    {
-      "id": 2,
-      "vulnerability_name": "Create DeprecatedVersionInterceptor — centralised retirement deny-list",
-      "description": "New HandlerInterceptor that blocks retired paths before they reach any controller. Future endpoint retirements are added to RETIRED_PATHS rather than modifying individual controllers.",
-      "file_path": "services/identity/src/main/java/com/crapi/interceptor/DeprecatedVersionInterceptor.java",
-      "search_code": "",
-      "replace_code": "package com.crapi.interceptor;\n\nimport jakarta.servlet.http.HttpServletRequest;\nimport jakarta.servlet.http.HttpServletResponse;\nimport java.util.Set;\nimport org.springframework.stereotype.Component;\nimport org.springframework.web.servlet.HandlerInterceptor;\n\n@Component\npublic class DeprecatedVersionInterceptor implements HandlerInterceptor {\n\n  private static final Set<String> RETIRED_PATHS =\n      Set.of(\n          \"/identity/api/auth/v2.7/user/login-with-token\"\n          // Add future retirements here\n          );\n\n  @Override\n  public boolean preHandle(\n      HttpServletRequest req, HttpServletResponse res, Object handler) throws Exception {\n    if (RETIRED_PATHS.contains(req.getRequestURI())) {\n      res.setStatus(410);\n      res.setContentType(\"application/json\");\n      res.getWriter()\n          .write(\"{\\\"message\\\":\\\"Endpoint retired.\\\",\\\"status\\\":410}\");\n      return false;\n    }\n    if (req.getRequestURI().contains(\"/v2.\")) {\n      res.addHeader(\"Deprecation\", \"true\");\n      res.addHeader(\"Sunset\", \"Sat, 01 Jan 2022 00:00:00 GMT\");\n      res.addHeader(\"Link\", \"</identity/api/auth/login>; rel=\\\"successor-version\\\"\");\n    }\n    return true;\n  }\n}\n"
-    },
-    {
-      "id": 3,
-      "vulnerability_name": "Create WebMvcConfig — register DeprecatedVersionInterceptor",
-      "description": "New WebMvcConfigurer that registers the DeprecatedVersionInterceptor so it runs before all controllers.",
-      "file_path": "services/identity/src/main/java/com/crapi/config/WebMvcConfig.java",
-      "search_code": "",
-      "replace_code": "package com.crapi.config;\n\nimport com.crapi.interceptor.DeprecatedVersionInterceptor;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.context.annotation.Configuration;\nimport org.springframework.web.servlet.config.annotation.InterceptorRegistry;\nimport org.springframework.web.servlet.config.annotation.WebMvcConfigurer;\n\n@Configuration\npublic class WebMvcConfig implements WebMvcConfigurer {\n\n  @Autowired private DeprecatedVersionInterceptor deprecatedInterceptor;\n\n  @Override\n  public void addInterceptors(InterceptorRegistry registry) {\n    registry.addInterceptor(deprecatedInterceptor);\n  }\n}\n"
     }
   ],
   "verification": [
