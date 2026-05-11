@@ -15,7 +15,7 @@
       "id": 2,
       "vulnerability_name": "Fix handleAccountLockException",
       "description": "Replace printStackTrace with logger",
-      "file_path": "services/identity/src/main/java/com/crapi/exception/ExceptionHandler.java",
+      "file_path": "src/main/java/com/crapi/exception/ExceptionHandler.java",
       "search_code": "e.printStackTrace();",
       "replace_code": "log.warn(\"Account locked\", e);"
     },
