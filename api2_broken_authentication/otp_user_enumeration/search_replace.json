@@ -44,14 +44,6 @@
       "replace_code": "    testImplementation(\"junit:junit:4.13.2\")\n    implementation(\"com.bucket4j:bucket4j-core:8.10.1\")\n}"
     },
     {
-      "id": 6,
-      "vulnerability_name": "Create OtpRateLimitFilter — IP-based rate limiter for OTP endpoints",
-      "description": "New Servlet filter that allows 5 OTP attempts per IP per 10 minutes across /check-otp. Excess requests receive HTTP 429 with a JSON body. File must be created at the path below.",
-      "file_path": "services/identity/src/main/java/com/crapi/filter/OtpRateLimitFilter.java",
-      "search_code": "",
-      "replace_code": "package com.crapi.filter;\n\nimport com.bucket4j.Bandwidth;\nimport com.bucket4j.Bucket;\nimport com.bucket4j.Refill;\nimport jakarta.servlet.FilterChain;\nimport jakarta.servlet.ServletException;\nimport jakarta.servlet.http.HttpServletRequest;\nimport jakarta.servlet.http.HttpServletResponse;\nimport java.io.IOException;\nimport java.time.Duration;\nimport java.util.Map;\nimport java.util.concurrent.ConcurrentHashMap;\nimport org.springframework.stereotype.Component;\nimport org.springframework.web.filter.OncePerRequestFilter;\n\n@Component\npublic class OtpRateLimitFilter extends OncePerRequestFilter {\n\n  private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();\n\n  @Override\n  protected void doFilterInternal(\n      HttpServletRequest req, HttpServletResponse res, FilterChain chain)\n      throws ServletException, IOException {\n    if (req.getRequestURI().contains(\"/check-otp\")) {\n      String key = req.getRemoteAddr();\n      Bucket bucket =\n          buckets.computeIfAbsent(\n              key,\n              k ->\n                  Bucket.builder()\n                      .addLimit(\n                          Bandwidth.classic(5, Refill.intervally(5, Duration.ofMinutes(10))))\n                      .build());\n      if (!bucket.tryConsume(1)) {\n        res.setStatus(429);\n        res.setContentType(\"application/json\");\n        res.getWriter()\n            .write(\n                \"{\\\"message\\\":\\\"Too many OTP attempts. Please wait 10 minutes.\\\",\\\"status\\\":429}\");\n        return;\n      }\n    }\n    chain.doFilter(req, res);\n  }\n}\n"
-    },
-    {
       "id": 7,
       "vulnerability_name": "Register OtpRateLimitFilter in WebSecurityConfig",
       "description": "Autowire the new filter and add it to the Spring Security filter chain so it runs before the JWT authentication filter.",
