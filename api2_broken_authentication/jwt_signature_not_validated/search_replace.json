@@ -89,32 +89,32 @@
     {
       "id": 1,
       "description": "HS256 algorithm-confusion token must be rejected — forge an HS256 token signed with the RSA public key and confirm 401",
-      "curl": "curl -s -o /dev/null -w '%{http_code}' http://localhost:8888/identity/api/v2/user/dashboard -H 'Authorization: Bearer <hs256-forged-token>'",
+      "curl": "curl -s -o /dev/null -w '%{http_code}' http://167.99.136.89:8888/identity/api/v2/user/dashboard -H 'Authorization: Bearer <hs256-forged-token>'",
       "expect_status": 401,
       "expect_body_excludes": "email"
     },
     {
       "id": 2,
       "description": "alg:none (unsigned) token must be rejected — send a PlainJWT and confirm 401",
-      "curl": "curl -s -o /dev/null -w '%{http_code}' http://localhost:8888/identity/api/v2/user/dashboard -H 'Authorization: Bearer eyJhbGciOiJub25lIn0.eyJzdWIiOiJ0ZXN0QGV4YW1wbGUuY29tIn0.'",
+      "curl": "curl -s -o /dev/null -w '%{http_code}' http://167.99.136.89:8888/identity/api/v2/user/dashboard -H 'Authorization: Bearer eyJhbGciOiJub25lIn0.eyJzdWIiOiJ0ZXN0QGV4YW1wbGUuY29tIn0.'",
       "expect_status": 401
     },
     {
       "id": 3,
       "description": "JKU header injection must be rejected — token with a jku header pointing to attacker-controlled URL must return 401",
-      "curl": "curl -s -o /dev/null -w '%{http_code}' http://localhost:8888/identity/api/v2/user/dashboard -H 'Authorization: Bearer <jku-injected-token>'",
+      "curl": "curl -s -o /dev/null -w '%{http_code}' http://167.99.136.89:8888/identity/api/v2/user/dashboard -H 'Authorization: Bearer <jku-injected-token>'",
       "expect_status": 401
     },
     {
       "id": 4,
       "description": "Unauthenticated request to dashboard must return 401 (no token at all)",
-      "curl": "curl -s -o /dev/null -w '%{http_code}' http://localhost:8888/identity/api/v2/user/dashboard",
+      "curl": "curl -s -o /dev/null -w '%{http_code}' http://167.99.136.89:8888/identity/api/v2/user/dashboard",
       "expect_status": 401
     },
     {
       "id": 5,
       "description": "Valid RS256 token must still be accepted — authenticated request returns 200",
-      "curl": "curl -s -o /dev/null -w '%{http_code}' http://localhost:8888/identity/api/v2/user/dashboard -H 'Authorization: Bearer <valid-rs256-token>'",
+      "curl": "curl -s -o /dev/null -w '%{http_code}' http://167.99.136.89:8888/identity/api/v2/user/dashboard -H 'Authorization: Bearer <valid-rs256-token>'",
       "expect_status": 200
     }
   ]

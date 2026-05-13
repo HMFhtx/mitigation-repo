@@ -49,21 +49,21 @@
     {
       "id": 1,
       "description": "Operator injection payload must be rejected with 400 — sending {\"coupon_code\": {\"$gt\": \"\"}} must not return a coupon",
-      "curl": "TOKEN=$(curl -s -X POST http://localhost:8888/identity/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"user@example.com\",\"password\":\"Passw0rd\"}' | python3 -c \"import sys,json; print(json.load(sys.stdin).get('token',''))\"); curl -s -w '\\nHTTP_STATUS:%{http_code}' -X POST http://localhost:8888/community/api/v2/coupon/validate-coupon -H 'Content-Type: application/json' -H \"Authorization: Bearer $TOKEN\" -d '{\"coupon_code\":{\"$gt\":\"\"}}'",
+      "curl": "TOKEN=$(curl -s -X POST http://167.99.136.89:8888/identity/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"user@example.com\",\"password\":\"Passw0rd\"}' | python3 -c \"import sys,json; print(json.load(sys.stdin).get('token',''))\"); curl -s -w '\\nHTTP_STATUS:%{http_code}' -X POST http://167.99.136.89:8888/community/api/v2/coupon/validate-coupon -H 'Content-Type: application/json' -H \"Authorization: Bearer $TOKEN\" -d '{\"coupon_code\":{\"$gt\":\"\"}}'",
       "expect_status": 400,
       "expect_body_excludes": "coupon_code"
     },
     {
       "id": 2,
       "description": "Empty coupon_code must be rejected with 400",
-      "curl": "TOKEN=$(curl -s -X POST http://localhost:8888/identity/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"user@example.com\",\"password\":\"Passw0rd\"}' | python3 -c \"import sys,json; print(json.load(sys.stdin).get('token',''))\"); curl -s -w '\\nHTTP_STATUS:%{http_code}' -X POST http://localhost:8888/community/api/v2/coupon/validate-coupon -H 'Content-Type: application/json' -H \"Authorization: Bearer $TOKEN\" -d '{\"coupon_code\":\"\"}'",
+      "curl": "TOKEN=$(curl -s -X POST http://167.99.136.89:8888/identity/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"user@example.com\",\"password\":\"Passw0rd\"}' | python3 -c \"import sys,json; print(json.load(sys.stdin).get('token',''))\"); curl -s -w '\\nHTTP_STATUS:%{http_code}' -X POST http://167.99.136.89:8888/community/api/v2/coupon/validate-coupon -H 'Content-Type: application/json' -H \"Authorization: Bearer $TOKEN\" -d '{\"coupon_code\":\"\"}'",
       "expect_status": 400,
       "expect_body_contains": "coupon_code is required"
     },
     {
       "id": 3,
       "description": "Valid coupon code must still return 200",
-      "curl": "TOKEN=$(curl -s -X POST http://localhost:8888/identity/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"user@example.com\",\"password\":\"Passw0rd\"}' | python3 -c \"import sys,json; print(json.load(sys.stdin).get('token',''))\"); curl -s -w '\\nHTTP_STATUS:%{http_code}' -X POST http://localhost:8888/community/api/v2/coupon/validate-coupon -H 'Content-Type: application/json' -H \"Authorization: Bearer $TOKEN\" -d '{\"coupon_code\":\"TRAC075\"}'",
+      "curl": "TOKEN=$(curl -s -X POST http://167.99.136.89:8888/identity/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"user@example.com\",\"password\":\"Passw0rd\"}' | python3 -c \"import sys,json; print(json.load(sys.stdin).get('token',''))\"); curl -s -w '\\nHTTP_STATUS:%{http_code}' -X POST http://167.99.136.89:8888/community/api/v2/coupon/validate-coupon -H 'Content-Type: application/json' -H \"Authorization: Bearer $TOKEN\" -d '{\"coupon_code\":\"TRAC075\"}'",
       "expect_status": 200
     }
   ]
