@@ -6,15 +6,15 @@
     {
       "id": 1,
       "vulnerability_name": "Reject alg:none tokens — remove PlainJWT acceptance in validateJwtToken",
-      "description": "The original catch block for ParseException attempted to parse the token as a PlainJWT and returned true unconditionally, accepting any unsigned token. This is already fixed by the jwt_signature_not_validated mitigation which replaced validateJwtToken with a strict JJWT verifyWith call. This step is a no-op guard — search_code matches the already-fixed method so the pipeline reports SKIPPED.",
+      "description": "The catch block for ParseException attempts to parse the token as a PlainJWT and returns true unconditionally, meaning any unsigned token is accepted. Remove this branch so the method returns false for unparseable or unsigned tokens.",
       "file_path": "services/identity/src/main/java/com/crapi/config/JwtProvider.java",
-      "search_code": "  public boolean validateJwtToken(String authToken) {\n    try {\n      Jwts.parser()\n          .verifyWith((java.security.PublicKey) this.keyPair.getPublic())\n          .build()\n          .parseSignedClaims(authToken);\n      return true;\n    } catch (JwtException | IllegalArgumentException e) {\n      log.error(\"JWT validation failed -> Message: {}\", e.getMessage());\n    }\n    return false;\n  }",
-      "replace_code": "  public boolean validateJwtToken(String authToken) {\n    try {\n      Jwts.parser()\n          .verifyWith((java.security.PublicKey) this.keyPair.getPublic())\n          .build()\n          .parseSignedClaims(authToken);\n      return true;\n    } catch (JwtException | IllegalArgumentException e) {\n      log.error(\"JWT validation failed -> Message: {}\", e.getMessage());\n    }\n    return false;\n  }"
+      "search_code": "    } catch (ParseException e) {\n      try {\n        PlainJWT jwt = PlainJWT.parse(authToken);\n        return true;\n      } catch (ParseException parseException) {\n        log.error(\"Could not parse JWT Token -> Message: %d\", parseException);\n      }\n    } catch (JOSEException e) {\n      log.error(\"RSA JWK Extraction failed -> Message: %d\", e);\n    }\n\n    return false;\n  }",
+      "replace_code": "    } catch (ParseException e) {\n      log.error(\"Could not parse JWT Token -> Message: %d\", e);\n    } catch (JOSEException e) {\n      log.error(\"RSA JWK Extraction failed -> Message: %d\", e);\n    }\n\n    return false;\n  }"
     },
     {
       "id": 2,
       "vulnerability_name": "Block alg:none in workshop JWT decode — reject tokens before claims extraction",
-      "description": "workshop/utils/jwt.py decodes JWTs with verify_signature=False. A defense-in-depth check rejects any token whose header declares alg:none before local decoding.",
+      "description": "workshop/utils/jwt.py decodes JWTs with verify_signature=False. Even though the identity service already validated the token, a defense-in-depth check should reject any token whose header declares alg:none before local decoding.",
       "file_path": "services/workshop/utils/jwt.py",
       "search_code": "                if response_status_code == status.HTTP_200_OK:\n                    decoded = jwt.decode(token, options={\"verify_signature\": False})",
       "replace_code": "                if response_status_code == status.HTTP_200_OK:\n                    _header = jwt.get_unverified_header(token)\n                    if _header.get(\"alg\", \"none\").lower() == \"none\":\n                        raise jwt.exceptions.InvalidAlgorithmError(\"alg:none tokens are not accepted\")\n                    decoded = jwt.decode(token, options={\"verify_signature\": False})"
@@ -37,4 +37,3 @@
     }
   ]
 }
-
