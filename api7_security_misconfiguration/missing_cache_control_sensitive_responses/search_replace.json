@@ -24,6 +24,7 @@
       "vulnerability_name": "Add identity service cache-control filter",
       "description": "Defence in depth for direct-to-service traffic and future gateway drift.",
       "file_path": "services/identity/src/main/java/com/crapi/config/CacheControlFilter.java",
+      "mode": "create",
       "search_code": "",
       "replace_code": "@Component\npublic class CacheControlFilter extends OncePerRequestFilter {\n    @Override\n    protected void doFilterInternal(HttpServletRequest req,\n            HttpServletResponse res, FilterChain chain)\n            throws ServletException, IOException {\n        res.setHeader(\"Cache-Control\", \"no-store\");\n        res.setHeader(\"Pragma\", \"no-cache\");\n        chain.doFilter(req, res);\n    }\n}"
     },

@@ -24,6 +24,7 @@
       "vulnerability_name": "Rate-limit coupon validation attempts",
       "description": "Cap brute-force attempts and return HTTP 429 after threshold.",
       "file_path": "services/community/api/middlewares/couponRateLimit.go",
+      "mode": "create",
       "search_code": "",
       "replace_code": "var couponLimiters sync.Map\n\nfunc couponLimiterFor(ip string) *rate.Limiter {\n    l, _ := couponLimiters.LoadOrStore(ip, rate.NewLimiter(rate.Every(12*time.Second), 5))\n    return l.(*rate.Limiter)\n}\n\nfunc CouponRateLimit(next http.Handler) http.Handler {\n    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n        if !couponLimiterFor(r.RemoteAddr).Allow() {\n            http.Error(w, \"Too many attempts\", http.StatusTooManyRequests)\n            return\n        }\n        next.ServeHTTP(w, r)\n    })\n}"
     }

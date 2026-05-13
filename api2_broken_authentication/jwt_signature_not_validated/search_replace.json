@@ -24,6 +24,7 @@
       "vulnerability_name": "Add dashboard regression test for invalid JWT signature",
       "description": "Prevent reintroduction by asserting /dashboard returns 401 for tampered tokens.",
       "file_path": "services/identity/src/test/java/com/crapi/integration/DashboardAuthTest.java",
+      "mode": "create",
       "search_code": "",
       "replace_code": "@SpringBootTest\n@AutoConfigureMockMvc\nclass DashboardAuthTest {\n    @Autowired MockMvc mvc;\n\n    @Test\n    void dashboardRejectsInvalidSignature() throws Exception {\n        String token =\n            \"eyJhbGciOiJSUzI1NiJ9.\" +\n            \"eyJzdWIiOiJ2aWN0aW1AZXhhbXBsZS5jb20iLCJyb2xlIjoidXNlciJ9.\" +\n            \"INVALIDSIGNATUREHERE\";\n\n        mvc.perform(get(\"/identity/api/v2/user/dashboard\")\n                .header(\"Authorization\", \"Bearer \" + token))\n           .andExpect(status().isUnauthorized());\n    }\n}"
     }
