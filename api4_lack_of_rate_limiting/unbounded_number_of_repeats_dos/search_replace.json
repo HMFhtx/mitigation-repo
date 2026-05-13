@@ -1,0 +1,59 @@
+{
+  "vulnerability": "API4-2023",
+  "owasp_tag": "Unrestricted Resource Consumption",
+  "subcategory": "Unbounded number_of_repeats Causes DoS",
+  "steps": [
+    {
+      "id": 1,
+      "vulnerability_name": "Validate number_of_repeats in serializer",
+      "description": "Use typed IntegerField with min/max bounds to reject strings and oversized values.",
+      "file_path": "services/workshop/crapi/mechanic/serializers.py",
+      "search_code": "",
+      "replace_code": "from rest_framework import serializers\n\nMAX_REPEATS = 5\n\nclass ContactMechanicSerializer(serializers.Serializer):\n    mechanic_code            = serializers.CharField(max_length=32)\n    problem_details          = serializers.CharField(max_length=500)\n    vin                      = serializers.RegexField(r\"^[A-HJ-NPR-Z0-9]{17}$\")\n    mechanic_api             = serializers.URLField()\n    repeat_request_if_failed = serializers.BooleanField(default=False)\n    number_of_repeats        = serializers.IntegerField(min_value=1, max_value=MAX_REPEATS)"
+    },
+    {
+      "id": 2,
+      "vulnerability_name": "Use serializer validation in contact_mechanic view",
+      "description": "Return HTTP 400 on invalid input and consume validated_data only.",
+      "file_path": "services/workshop/crapi/mechanic/views.py",
+      "search_code": "data = request.data",
+      "replace_code": "from .serializers import ContactMechanicSerializer\n\nserializer = ContactMechanicSerializer(data=request.data)\nif not serializer.is_valid():\n    return Response({\"message\": \"Invalid input\", \"errors\": serializer.errors, \"status\": 400}, status=400)\ndata = serializer.validated_data"
+    },
+    {
+      "id": 3,
+      "vulnerability_name": "Enforce endpoint throttle for contact_mechanic",
+      "description": "Rate limit per user with DRF ScopedRateThrottle.",
+      "file_path": "services/workshop/crapi/settings.py",
+      "search_code": "REST_FRAMEWORK = {",
+      "replace_code": "REST_FRAMEWORK = {\n    \"DEFAULT_THROTTLE_CLASSES\": [\n        \"rest_framework.throttling.ScopedRateThrottle\",\n    ],\n    \"DEFAULT_THROTTLE_RATES\": {\n        \"contact_mechanic\": \"10/minute\",\n    },"
+    },
+    {
+      "id": 4,
+      "vulnerability_name": "Apply throttle scope on view",
+      "description": "Bind contact_mechanic endpoint to configured throttle rate.",
+      "file_path": "services/workshop/crapi/mechanic/views.py",
+      "search_code": "class ContactMechanicView(APIView):",
+      "replace_code": "class ContactMechanicView(APIView):\n    throttle_scope = \"contact_mechanic\""
+    }
+  ],
+  "verification": [
+    {
+      "id": 1,
+      "description": "Oversized number_of_repeats must return 400",
+      "curl": "curl -s -o /dev/null -w '%{http_code}\\n' -X POST http://localhost:8888/workshop/api/merchant/contact_mechanic -H 'Content-Type: application/json' -H \"Authorization: Bearer $TOKEN\" -d '{\"mechanic_code\":\"TRAC_JHN\",\"problem_details\":\"test\",\"vin\":\"4AGRNV6392LZ82YUR\",\"mechanic_api\":\"https://api.partner-mechanic.example/r\",\"repeat_request_if_failed\":true,\"number_of_repeats\":10000}'",
+      "expect_status": 400
+    },
+    {
+      "id": 2,
+      "description": "String type for number_of_repeats must return 400",
+      "curl": "curl -s -o /dev/null -w '%{http_code}\\n' -X POST http://localhost:8888/workshop/api/merchant/contact_mechanic -H 'Content-Type: application/json' -H \"Authorization: Bearer $TOKEN\" -d '{\"mechanic_code\":\"TRAC_JHN\",\"problem_details\":\"test\",\"vin\":\"4AGRNV6392LZ82YUR\",\"mechanic_api\":\"https://api.partner-mechanic.example/r\",\"repeat_request_if_failed\":true,\"number_of_repeats\":\"5\"}'",
+      "expect_status": 400
+    },
+    {
+      "id": 3,
+      "description": "Valid bounded repeat value should still be accepted",
+      "curl": "curl -s -o /dev/null -w '%{http_code}\\n' -X POST http://localhost:8888/workshop/api/merchant/contact_mechanic -H 'Content-Type: application/json' -H \"Authorization: Bearer $TOKEN\" -d '{\"mechanic_code\":\"TRAC_JHN\",\"problem_details\":\"test\",\"vin\":\"4AGRNV6392LZ82YUR\",\"mechanic_api\":\"https://api.partner-mechanic.example/r\",\"repeat_request_if_failed\":true,\"number_of_repeats\":3}'",
+      "expect_status": 200
+    }
+  ]
+}

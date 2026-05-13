@@ -1,0 +1,51 @@
+{
+  "vulnerability": "API2-2023",
+  "owasp_tag": "Broken Authentication",
+  "subcategory": "Unsigned JWT Accepted (alg: none)",
+  "steps": [
+    {
+      "id": 1,
+      "vulnerability_name": "Enforce JWT algorithm allowlist in identity-service",
+      "description": "Use parserBuilder + parseClaimsJws and reject any JWT algorithm not explicitly allowlisted (HS512). This blocks alg=none and any unsupported algorithm.",
+      "file_path": "services/identity/src/main/java/com/crapi/config/JwtAuthTokenFilter.java",
+      "search_code": "Claims claims = Jwts.parser()\n    .setSigningKey(jwtSecret)\n    .parseClaimsJws(token)\n    .getBody();",
+      "replace_code": "import io.jsonwebtoken.*;\nimport java.util.Set;\n\nprivate static final Set<String> ALLOWED_ALGS = Set.of(\"HS512\");\n\nJws<Claims> jws = Jwts.parserBuilder()\n    .setSigningKey(jwtSecret)\n    .build()\n    .parseClaimsJws(token);\n\nString alg = jws.getHeader().getAlgorithm();\nif (alg == null || !ALLOWED_ALGS.contains(alg)) {\n    throw new io.jsonwebtoken.security.SignatureException(\n        \"Disallowed JWT algorithm: \" + alg);\n}\nClaims claims = jws.getBody();"
+    },
+    {
+      "id": 2,
+      "vulnerability_name": "Reject non-HMAC and non-HS512 in community-service",
+      "description": "Harden jwt.Parse keyFunc to deny alg=none and any signing method except HMAC HS512.",
+      "file_path": "services/community/api/middlewares/jwtMiddleware.go",
+      "search_code": "token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {\n    return []byte(jwtSecret), nil\n})",
+      "replace_code": "token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {\n    if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {\n        return nil, fmt.Errorf(\"unexpected signing method: %v\", t.Header[\"alg\"])\n    }\n    if alg, _ := t.Header[\"alg\"].(string); alg != \"HS512\" {\n        return nil, fmt.Errorf(\"disallowed alg: %s\", alg)\n    }\n    return []byte(jwtSecret), nil\n})"
+    },
+    {
+      "id": 3,
+      "vulnerability_name": "Pin accepted JWT algorithms in workshop-service",
+      "description": "Require algorithms=[\"HS512\"] in jwt.decode so unsigned/none tokens are rejected by PyJWT.",
+      "file_path": "services/workshop/crapi/shop/auth.py",
+      "search_code": "payload = jwt.decode(token, settings.JWT_SECRET)",
+      "replace_code": "import jwt\nfrom jwt.exceptions import InvalidAlgorithmError, InvalidTokenError\n\nALLOWED_ALGORITHMS = [\"HS512\"]\n\ntry:\n    payload = jwt.decode(\n        token,\n        settings.JWT_SECRET,\n        algorithms=ALLOWED_ALGORITHMS,\n    )\nexcept (InvalidAlgorithmError, InvalidTokenError) as e:\n    raise AuthenticationFailed(f\"Invalid token: {e}\")"
+    }
+  ],
+  "verification": [
+    {
+      "id": 1,
+      "description": "Unsigned JWT (alg=none) must be rejected on identity endpoint",
+      "curl": "curl -s -o /dev/null -w '%{http_code}\\n' -X GET 'http://localhost:8888/identity/api/v2/vehicle/vehicles' -H 'Authorization: Bearer eyJhbGciOiJub25lIiwia2lkIjoiIiwidHlwIjoiIn0.eyJzdWIiOiJ4QGV4YW1wbGUuY29tIiwicm9sZSI6InVzZXIifQ.'",
+      "expect_status": 401
+    },
+    {
+      "id": 2,
+      "description": "Unsigned JWT (alg=none) must be rejected on workshop endpoint",
+      "curl": "curl -s -o /dev/null -w '%{http_code}\\n' -X GET 'http://localhost:8888/workshop/api/shop/products' -H 'Authorization: Bearer eyJhbGciOiJub25lIiwia2lkIjoiIiwidHlwIjoiIn0.eyJzdWIiOiJ4QGV4YW1wbGUuY29tIiwicm9sZSI6InVzZXIifQ.'",
+      "expect_status": 401
+    },
+    {
+      "id": 3,
+      "description": "Unsigned JWT (alg=none) must be rejected on community endpoint",
+      "curl": "curl -s -o /dev/null -w '%{http_code}\\n' -X GET 'http://localhost:8888/community/api/v2/community/posts' -H 'Authorization: Bearer eyJhbGciOiJub25lIiwia2lkIjoiIiwidHlwIjoiIn0.eyJzdWIiOiJ4QGV4YW1wbGUuY29tIiwicm9sZSI6InVzZXIifQ.'",
+      "expect_status": 401
+    }
+  ]
+}

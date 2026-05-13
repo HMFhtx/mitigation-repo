@@ -1,0 +1,45 @@
+{
+  "vulnerability": "API7-2023",
+  "owasp_tag": "Server Side Request Forgery",
+  "subcategory": "SSRF via mechanic_api Parameter",
+  "steps": [
+    {
+      "id": 1,
+      "vulnerability_name": "Create mechanic URL validator with allowlist and IP checks",
+      "description": "Reject unsafe schemes, userinfo URLs, non-allowlisted hosts, and private/link-local resolutions.",
+      "file_path": "services/workshop/crapi/mechanic/url_validator.py",
+      "search_code": "",
+      "replace_code": "import ipaddress\nimport socket\nfrom urllib.parse import urlparse\nfrom django.conf import settings\n\nclass UnsafeURLError(ValueError):\n    pass\n\nALLOWED_MECHANIC_HOSTS = getattr(settings, \"ALLOWED_MECHANIC_HOSTS\", set())\n\n_BLOCKED_NETS = [\n    ipaddress.ip_network(\"127.0.0.0/8\"),\n    ipaddress.ip_network(\"10.0.0.0/8\"),\n    ipaddress.ip_network(\"172.16.0.0/12\"),\n    ipaddress.ip_network(\"192.168.0.0/16\"),\n    ipaddress.ip_network(\"169.254.0.0/16\"),\n    ipaddress.ip_network(\"::1/128\"),\n    ipaddress.ip_network(\"fc00::/7\"),\n    ipaddress.ip_network(\"fe80::/10\"),\n]\n\ndef validate_mechanic_url(raw_url: str) -> str:\n    parsed = urlparse(raw_url)\n    if parsed.scheme not in (\"https\",):\n        raise UnsafeURLError(f\"Disallowed scheme: {parsed.scheme}\")\n    if parsed.username or parsed.password:\n        raise UnsafeURLError(\"Credentials in URL are not allowed\")\n    host = parsed.hostname\n    if not host:\n        raise UnsafeURLError(\"URL has no hostname\")\n    if host not in ALLOWED_MECHANIC_HOSTS:\n        raise UnsafeURLError(f\"Host not allowlisted: {host}\")\n\n    infos = socket.getaddrinfo(host, None)\n    for info in infos:\n        ip = ipaddress.ip_address(info[4][0])\n        for net in _BLOCKED_NETS:\n            if ip in net:\n                raise UnsafeURLError(f\"Host resolves to private/loopback IP: {ip}\")\n\n    return parsed._replace(netloc=host + (f\":{parsed.port}\" if parsed.port else \"\")).geturl()"
+    },
+    {
+      "id": 2,
+      "vulnerability_name": "Configure allowed mechanic hosts",
+      "description": "Whitelist outbound destinations explicitly in workshop settings.",
+      "file_path": "services/workshop/crapi/settings.py",
+      "search_code": "",
+      "replace_code": "ALLOWED_MECHANIC_HOSTS = {\n    \"api.partner-mechanic.example\",\n    \"mechanic-api.crapi.partners\",\n}"
+    },
+    {
+      "id": 3,
+      "vulnerability_name": "Validate mechanic_api before outbound request",
+      "description": "Use validator and return HTTP 400 on unsafe URL input; disable redirects.",
+      "file_path": "services/workshop/crapi/mechanic/views.py",
+      "search_code": "resp = requests.post(raw_url, json=payload)",
+      "replace_code": "from .url_validator import validate_mechanic_url, UnsafeURLError\n\nraw_url = request.data.get(\"mechanic_api\")\ntry:\n    safe_url = validate_mechanic_url(raw_url)\nexcept UnsafeURLError as e:\n    return Response({\"message\": f\"Invalid mechanic_api: {e}\", \"status\": 400}, status=400)\n\nresp = requests.post(safe_url, json=payload, timeout=5, allow_redirects=False)"
+    }
+  ],
+  "verification": [
+    {
+      "id": 1,
+      "description": "Non-allowlisted external URL must be rejected",
+      "curl": "curl -s -o /dev/null -w '%{http_code}\\n' -X POST http://localhost:8888/workshop/api/merchant/contact_mechanic -H 'Content-Type: application/json' -H \"Authorization: Bearer $TOKEN\" -d '{\"mechanic_code\":\"TRAC_JHN\",\"problem_details\":\"test\",\"vin\":\"4AGRNV6392LZ82YUR\",\"repeat_request_if_failed\":false,\"number_of_repeats\":1,\"mechanic_api\":\"https://attacker.example/probe\"}'",
+      "expect_status": 400
+    },
+    {
+      "id": 2,
+      "description": "Metadata IP and credential-embedded URLs must be rejected",
+      "curl": "curl -s -o /dev/null -w '%{http_code}\\n' -X POST http://localhost:8888/workshop/api/merchant/contact_mechanic -H 'Content-Type: application/json' -H \"Authorization: Bearer $TOKEN\" -d '{\"mechanic_code\":\"TRAC_JHN\",\"problem_details\":\"test\",\"vin\":\"4AGRNV6392LZ82YUR\",\"repeat_request_if_failed\":false,\"number_of_repeats\":1,\"mechanic_api\":\"https://169.254.169.254/latest/meta-data/\"}' && curl -s -o /dev/null -w '%{http_code}\\n' -X POST http://localhost:8888/workshop/api/merchant/contact_mechanic -H 'Content-Type: application/json' -H \"Authorization: Bearer $TOKEN\" -d '{\"mechanic_code\":\"TRAC_JHN\",\"problem_details\":\"test\",\"vin\":\"4AGRNV6392LZ82YUR\",\"repeat_request_if_failed\":false,\"number_of_repeats\":1,\"mechanic_api\":\"https://api.partner-mechanic.example@attacker.example/\"}'",
+      "expect_status": 400
+    }
+  ]
+}

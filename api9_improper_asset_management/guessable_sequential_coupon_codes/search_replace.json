@@ -1,0 +1,45 @@
+{
+  "vulnerability": "API9-2023",
+  "owasp_tag": "Improper Inventory Management",
+  "subcategory": "Guessable Sequential Coupon Codes",
+  "steps": [
+    {
+      "id": 1,
+      "vulnerability_name": "Replace sequential coupon generator with CSPRNG",
+      "description": "Generate non-enumerable random codes using crypto/rand.",
+      "file_path": "services/community/api/services/coupon_service.go",
+      "search_code": "func NewCouponCode() string {\n    return fmt.Sprintf(\"TRAC%03d\", next)\n}",
+      "replace_code": "import (\n    \"crypto/rand\"\n    \"encoding/base32\"\n    \"strings\"\n)\n\nfunc NewCouponCode() (string, error) {\n    var buf [8]byte\n    if _, err := rand.Read(buf[:]); err != nil {\n        return \"\", err\n    }\n    enc := base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(buf[:])\n    enc = strings.ToUpper(strings.TrimRight(enc, \"=\"))\n    return enc[:12], nil\n}"
+    },
+    {
+      "id": 2,
+      "vulnerability_name": "Bind coupon validation to entitled user",
+      "description": "Reject validation if authenticated user is not entitled for coupon.",
+      "file_path": "services/community/api/controllers/couponController.go",
+      "search_code": "err := db.Collection(\"coupon\").FindOne(ctx, bson.M{\n    \"coupon_code\": req.CouponCode,\n}).Decode(&coupon)",
+      "replace_code": "userEmail := r.Context().Value(\"user_email\").(string)\n\nerr := db.Collection(\"coupon\").FindOne(ctx, bson.M{\n    \"coupon_code\": req.CouponCode,\n    \"entitled_emails\": userEmail,\n}).Decode(&coupon)\nif err == mongo.ErrNoDocuments {\n    http.Error(w, \"Coupon not valid for this account\", http.StatusForbidden)\n    return\n}"
+    },
+    {
+      "id": 3,
+      "vulnerability_name": "Rate-limit coupon validation attempts",
+      "description": "Cap brute-force attempts and return HTTP 429 after threshold.",
+      "file_path": "services/community/api/middlewares/couponRateLimit.go",
+      "search_code": "",
+      "replace_code": "var couponLimiters sync.Map\n\nfunc couponLimiterFor(ip string) *rate.Limiter {\n    l, _ := couponLimiters.LoadOrStore(ip, rate.NewLimiter(rate.Every(12*time.Second), 5))\n    return l.(*rate.Limiter)\n}\n\nfunc CouponRateLimit(next http.Handler) http.Handler {\n    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n        if !couponLimiterFor(r.RemoteAddr).Allow() {\n            http.Error(w, \"Too many attempts\", http.StatusTooManyRequests)\n            return\n        }\n        next.ServeHTTP(w, r)\n    })\n}"
+    }
+  ],
+  "verification": [
+    {
+      "id": 1,
+      "description": "Sequential TRAC guesses should no longer validate",
+      "curl": "for n in 060 061 062 063 064 065 066 067 068 069; do curl -s -o /dev/null -w \"TRAC$n %{http_code}\\n\" -X POST http://localhost:8888/community/api/v2/coupon/validate-coupon -H 'Content-Type: application/json' -H \"Authorization: Bearer $TOKEN\" -d \"{\\\"coupon_code\\\":\\\"TRAC$n\\\"}\"; done",
+      "expect_status": 403
+    },
+    {
+      "id": 2,
+      "description": "After 5 invalid attempts, limiter should return 429",
+      "curl": "for i in {1..7}; do curl -s -o /dev/null -w '%{http_code} ' -X POST http://localhost:8888/community/api/v2/coupon/validate-coupon -H 'Content-Type: application/json' -H \"Authorization: Bearer $TOKEN\" -d '{\"coupon_code\":\"INVALIDXX\"}'; done; echo",
+      "expect_status": 429
+    }
+  ]
+}

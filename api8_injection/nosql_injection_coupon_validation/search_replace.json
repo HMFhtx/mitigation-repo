@@ -1,0 +1,45 @@
+{
+  "vulnerability": "API8-2019",
+  "owasp_tag": "Injection",
+  "subcategory": "NoSQL Injection in Coupon Validation",
+  "steps": [
+    {
+      "id": 1,
+      "vulnerability_name": "Use typed request payload for coupon_code",
+      "description": "Reject object payloads before query construction and enforce strict coupon format.",
+      "file_path": "services/community/api/controllers/couponController.go",
+      "search_code": "var body map[string]interface{}\nif err := json.NewDecoder(r.Body).Decode(&body); err != nil { ... }\ncode := body[\"coupon_code\"]\nfilter := bson.M{\"coupon_code\": code}",
+      "replace_code": "type validateCouponReq struct {\n    CouponCode string `json:\"coupon_code\"`\n}\n\nvar req validateCouponReq\ndec := json.NewDecoder(r.Body)\ndec.DisallowUnknownFields()\nif err := dec.Decode(&req); err != nil {\n    http.Error(w, \"Invalid request body\", http.StatusBadRequest)\n    return\n}\nif !regexp.MustCompile(`^[A-Za-z0-9_-]{1,32}$`).MatchString(req.CouponCode) {\n    http.Error(w, \"Invalid coupon code format\", http.StatusBadRequest)\n    return\n}\nfilter := bson.M{\"coupon_code\": req.CouponCode}"
+    },
+    {
+      "id": 2,
+      "vulnerability_name": "Add middleware to block Mongo operator keys",
+      "description": "Defence in depth by rejecting request bodies containing $-prefixed keys.",
+      "file_path": "services/community/api/middlewares/noOperatorBody.go",
+      "search_code": "",
+      "replace_code": "package middlewares\n\nimport (\n    \"bytes\"\n    \"encoding/json\"\n    \"io\"\n    \"net/http\"\n    \"strings\"\n)\n\nfunc NoMongoOperators(next http.Handler) http.Handler {\n    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n        if r.Body == nil || r.ContentLength == 0 {\n            next.ServeHTTP(w, r)\n            return\n        }\n        raw, _ := io.ReadAll(r.Body)\n        r.Body = io.NopCloser(bytes.NewReader(raw))\n\n        var probe interface{}\n        if err := json.Unmarshal(raw, &probe); err == nil {\n            if containsDollarKey(probe) {\n                http.Error(w, \"Invalid request: operator keys not allowed\", http.StatusBadRequest)\n                return\n            }\n        }\n        next.ServeHTTP(w, r)\n    })\n}\n\nfunc containsDollarKey(v interface{}) bool {\n    switch t := v.(type) {\n    case map[string]interface{}:\n        for k, child := range t {\n            if strings.HasPrefix(k, \"$\") {\n                return true\n            }\n            if containsDollarKey(child) {\n                return true\n            }\n        }\n    case []interface{}:\n        for _, child := range t {\n            if containsDollarKey(child) {\n                return true\n            }\n        }\n    }\n    return false\n}"
+    },
+    {
+      "id": 3,
+      "vulnerability_name": "Register NoMongoOperators middleware",
+      "description": "Apply middleware globally to community router.",
+      "file_path": "services/community/api/server.go",
+      "search_code": "router := mux.NewRouter()",
+      "replace_code": "router := mux.NewRouter()\nrouter.Use(middlewares.NoMongoOperators)"
+    }
+  ],
+  "verification": [
+    {
+      "id": 1,
+      "description": "Operator object in coupon_code must be rejected",
+      "curl": "curl -s -o /dev/null -w '%{http_code}\\n' -X POST 'http://localhost:8888/community/api/v2/coupon/validate-coupon' -H 'Content-Type: application/json' -H \"Authorization: Bearer $TOKEN\" -d '{\"coupon_code\": {\"$gt\": \"\"}}'",
+      "expect_status": 400
+    },
+    {
+      "id": 2,
+      "description": "Plain string coupon should continue to validate",
+      "curl": "curl -s -o /dev/null -w '%{http_code}\\n' -X POST 'http://localhost:8888/community/api/v2/coupon/validate-coupon' -H 'Content-Type: application/json' -H \"Authorization: Bearer $TOKEN\" -d '{\"coupon_code\": \"TRAC075\"}'",
+      "expect_status": 200
+    }
+  ]
+}

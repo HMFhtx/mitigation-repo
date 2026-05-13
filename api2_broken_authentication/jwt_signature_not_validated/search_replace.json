@@ -1,0 +1,45 @@
+{
+  "vulnerability": "API2-2023",
+  "owasp_tag": "Broken Authentication",
+  "subcategory": "JWT Signature Not Validated",
+  "steps": [
+    {
+      "id": 1,
+      "vulnerability_name": "Remove non-verifying JWT claim parser",
+      "description": "Delete parseClaimsJwt/decode-without-verify path and keep only parseClaimsJws-based verification.",
+      "file_path": "services/identity/src/main/java/com/crapi/config/JwtProvider.java",
+      "search_code": "public Claims getClaimsWithoutSignature(String token) {\n    return Jwts.parser().setSigningKey(jwtSecret)\n        .parseClaimsJwt(token)\n        .getBody();\n}",
+      "replace_code": ""
+    },
+    {
+      "id": 2,
+      "vulnerability_name": "Use parserBuilder with parseClaimsJws",
+      "description": "Ensure all claims extraction performs signature validation.",
+      "file_path": "services/identity/src/main/java/com/crapi/config/JwtProvider.java",
+      "search_code": "return Jwts.parser().setSigningKey(jwtSecret)\n    .parseClaimsJws(token)\n    .getBody();",
+      "replace_code": "return Jwts.parserBuilder()\n    .setSigningKey(jwtSecret)\n    .build()\n    .parseClaimsJws(token)\n    .getBody();"
+    },
+    {
+      "id": 3,
+      "vulnerability_name": "Add dashboard regression test for invalid JWT signature",
+      "description": "Prevent reintroduction by asserting /dashboard returns 401 for tampered tokens.",
+      "file_path": "services/identity/src/test/java/com/crapi/integration/DashboardAuthTest.java",
+      "search_code": "",
+      "replace_code": "@SpringBootTest\n@AutoConfigureMockMvc\nclass DashboardAuthTest {\n    @Autowired MockMvc mvc;\n\n    @Test\n    void dashboardRejectsInvalidSignature() throws Exception {\n        String token =\n            \"eyJhbGciOiJSUzI1NiJ9.\" +\n            \"eyJzdWIiOiJ2aWN0aW1AZXhhbXBsZS5jb20iLCJyb2xlIjoidXNlciJ9.\" +\n            \"INVALIDSIGNATUREHERE\";\n\n        mvc.perform(get(\"/identity/api/v2/user/dashboard\")\n                .header(\"Authorization\", \"Bearer \" + token))\n           .andExpect(status().isUnauthorized());\n    }\n}"
+    }
+  ],
+  "verification": [
+    {
+      "id": 1,
+      "description": "Tampered-signature dashboard token must be rejected",
+      "curl": "curl -s -o /dev/null -w '%{http_code}\\n' -X GET 'http://localhost:8888/identity/api/v2/user/dashboard' -H 'Authorization: Bearer eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ4QGV4YW1wbGUuY29tIn0.BAD'",
+      "expect_status": 401
+    },
+    {
+      "id": 2,
+      "description": "Valid signed token should still succeed",
+      "curl": "TOKEN=$(curl -s -X POST http://localhost:8888/identity/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"test@test.com\",\"password\":\"Password123!\"}' | jq -r .token) && curl -s -o /dev/null -w '%{http_code}\\n' -X GET 'http://localhost:8888/identity/api/v2/user/dashboard' -H \"Authorization: Bearer $TOKEN\"",
+      "expect_status": 200
+    }
+  ]
+}
