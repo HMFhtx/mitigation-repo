@@ -6,7 +6,7 @@
     {
       "id": 1,
       "vulnerability_name": "Fix validateOtp — stop leaking user email and return 400 for bad OTP",
-      "description": "Replace EntityNotFoundException throw (which leaks the submitted email address in the error body) with a generic 400 response. Also change the invalid-OTP status from 500 to 400 so the controller returns the correct HTTP status code.",
+      "description": "Replace EntityNotFoundException throw with a generic 400 response. Also change the invalid-OTP status from 500 to 400.",
       "file_path": "services/identity/src/main/java/com/crapi/service/Impl/OtpServiceImpl.java",
       "search_code": "      } else {\n        otp.setCount(otp.getCount() + 1);\n        validateOTPResponse = new CRAPIResponse(UserMessage.INVALID_OTP, 500);\n      }\n      otpRepository.save(otp);\n      return validateOTPResponse;\n    }\n    throw new EntityNotFoundException(User.class, \"userEmail\", otpForm.getEmail());\n  }\n\n  @Override\n  public CRAPIResponse secureValidateOtp",
       "replace_code": "      } else {\n        otp.setCount(otp.getCount() + 1);\n        validateOTPResponse = new CRAPIResponse(UserMessage.INVALID_OTP, 400);\n      }\n      otpRepository.save(otp);\n      return validateOTPResponse;\n    }\n    return new CRAPIResponse(\"Invalid OTP or account details.\", 400);\n  }\n\n  @Override\n  public CRAPIResponse secureValidateOtp"
@@ -14,7 +14,7 @@
     {
       "id": 2,
       "vulnerability_name": "Fix secureValidateOtp — stop leaking user email and fix 500 status codes",
-      "description": "Replace EntityNotFoundException throw with a generic 400 response in secureValidateOtp. Also change invalid-OTP and error status codes from 500 to 400.",
+      "description": "Replace EntityNotFoundException throw with a generic 400 response in secureValidateOtp.",
       "file_path": "services/identity/src/main/java/com/crapi/service/Impl/OtpServiceImpl.java",
       "search_code": "      } else if (otp.getCount() == 9) {\n        otp.setCount(otp.getCount() + 1);\n        invalidateOtp(otp);\n        validateOTPResponse = new CRAPIResponse(UserMessage.EXCEED_NUMBER_OF_ATTEMPS, 503);\n      } else if (otp.getCount() > 9) {\n        otp.setCount(otp.getCount() + 1);\n        validateOTPResponse = new CRAPIResponse(UserMessage.ERROR, 500);\n        invalidateOtp(otp);\n      } else {\n        otp.setCount(otp.getCount() + 1);\n        validateOTPResponse = new CRAPIResponse(UserMessage.INVALID_OTP, 500);\n      }\n      otpRepository.save(otp);\n      return validateOTPResponse;\n    }\n    throw new EntityNotFoundException(User.class, \"userEmail\", otpForm.getEmail());\n  }",
       "replace_code": "      } else if (otp.getCount() == 9) {\n        otp.setCount(otp.getCount() + 1);\n        invalidateOtp(otp);\n        validateOTPResponse = new CRAPIResponse(UserMessage.EXCEED_NUMBER_OF_ATTEMPS, 503);\n      } else if (otp.getCount() > 9) {\n        otp.setCount(otp.getCount() + 1);\n        validateOTPResponse = new CRAPIResponse(UserMessage.ERROR, 400);\n        invalidateOtp(otp);\n      } else {\n        otp.setCount(otp.getCount() + 1);\n        validateOTPResponse = new CRAPIResponse(UserMessage.INVALID_OTP, 400);\n      }\n      otpRepository.save(otp);\n      return validateOTPResponse;\n    }\n    return new CRAPIResponse(\"Invalid OTP or account details.\", 400);\n  }"
@@ -22,7 +22,7 @@
     {
       "id": 3,
       "vulnerability_name": "Fix checkOtp controller — return HTTP 400 instead of 500 for bad OTP",
-      "description": "The /v2/check-otp handler maps all non-200 service responses to HTTP 500. Change it to return HTTP 400 (Bad Request) so the OTP failure path has the correct status code.",
+      "description": "Change it to return HTTP 400 so the OTP failure path has the correct status code.",
       "file_path": "services/identity/src/main/java/com/crapi/controller/AuthController.java",
       "search_code": "    if (validateOtpResponse != null && validateOtpResponse.getStatus() == 200) {\n      return ResponseEntity.status(HttpStatus.OK).body(validateOtpResponse);\n    } else {\n      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(validateOtpResponse);\n    }\n  }",
       "replace_code": "    if (validateOtpResponse != null && validateOtpResponse.getStatus() == 200) {\n      return ResponseEntity.status(HttpStatus.OK).body(validateOtpResponse);\n    } else {\n      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(validateOtpResponse);\n    }\n  }"
@@ -30,44 +30,36 @@
     {
       "id": 4,
       "vulnerability_name": "Fix secureCheckOtp controller — return HTTP 400 instead of 500 for bad OTP",
-      "description": "The /v3/check-otp handler maps all non-200/503 service responses to HTTP 500. Change the fallback to HTTP 400 so invalid-OTP and user-not-found paths return the correct status code.",
+      "description": "Change the fallback to HTTP 400 so invalid-OTP and user-not-found paths return the correct status code.",
       "file_path": "services/identity/src/main/java/com/crapi/controller/AuthController.java",
       "search_code": "    if (validateOtpResponse.getStatus() == 200) {\n      return ResponseEntity.status(HttpStatus.OK).body(validateOtpResponse);\n    } else if (validateOtpResponse.getStatus() == 503) {\n      return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(validateOtpResponse);\n    }\n    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(validateOtpResponse);\n  }",
       "replace_code": "    if (validateOtpResponse.getStatus() == 200) {\n      return ResponseEntity.status(HttpStatus.OK).body(validateOtpResponse);\n    } else if (validateOtpResponse.getStatus() == 503) {\n      return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(validateOtpResponse);\n    }\n    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(validateOtpResponse);\n  }"
     },
     {
       "id": 5,
-      "vulnerability_name": "Add Bucket4j rate-limiting dependency to build.gradle.kts",
-      "description": "Add the Bucket4j core library so the OtpRateLimitFilter can use in-memory token-bucket rate limiting with no external infrastructure.",
-      "file_path": "services/identity/build.gradle.kts",
-      "search_code": "    testImplementation(\"junit:junit:4.13.2\")\n}",
-      "replace_code": "    testImplementation(\"junit:junit:4.13.2\")\n    implementation(\"com.bucket4j:bucket4j-core:8.10.1\")\n}"
+      "vulnerability_name": "Create OtpRateLimitFilter — IP-based rate limiter for OTP endpoints",
+      "description": "New Servlet filter that allows 5 OTP attempts per IP per 10 minutes across /check-otp.",
+      "file_path": "services/identity/src/main/java/com/crapi/filter/OtpRateLimitFilter.java",
+      "mode": "create",
+      "search_code": "",
+      "replace_code": "package com.crapi.filter;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.http.HttpServletRequest;\nimport jakarta.servlet.http.HttpServletResponse;\nimport java.io.IOException;\nimport java.time.Instant;\nimport java.util.concurrent.ConcurrentHashMap;\nimport java.util.concurrent.atomic.AtomicInteger;\nimport org.springframework.stereotype.Component;\nimport org.springframework.web.filter.OncePerRequestFilter;\n\n@Component\npublic class OtpRateLimitFilter extends OncePerRequestFilter {\n\n  private final ConcurrentHashMap<String, AtomicInteger> attempts = new ConcurrentHashMap<>();\n  private final ConcurrentHashMap<String, Instant> windowStart = new ConcurrentHashMap<>();\n  private static final int MAX_ATTEMPTS = 5;\n  private static final long WINDOW_SECONDS = 600;\n\n  @Override\n  protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)\n      throws ServletException, IOException {\n    if (req.getRequestURI().contains(\"/check-otp\")) {\n      String key = req.getRemoteAddr();\n      Instant now = Instant.now();\n      windowStart.putIfAbsent(key, now);\n      if (now.getEpochSecond() - windowStart.get(key).getEpochSecond() > WINDOW_SECONDS) {\n        windowStart.put(key, now);\n        attempts.put(key, new AtomicInteger(0));\n      }\n      attempts.putIfAbsent(key, new AtomicInteger(0));\n      if (attempts.get(key).incrementAndGet() > MAX_ATTEMPTS) {\n        res.setStatus(429);\n        res.setContentType(\"application/json\");\n        res.getWriter().write(\"{\\\"message\\\":\\\"Too many OTP attempts. Please wait 10 minutes.\\\",\\\"status\\\":429}\");\n        return;\n      }\n    }\n    chain.doFilter(req, res);\n  }\n}\n"
     },
-  {
-  "id": 6,
-  "vulnerability_name": "Create OtpRateLimitFilter — IP-based rate limiter for OTP endpoints",
-  "description": "New Servlet filter that allows 5 OTP attempts per IP per 10 minutes across /check-otp.",
-  "file_path": "services/identity/src/main/java/com/crapi/filter/OtpRateLimitFilter.java",
-  "mode": "create",
-  "search_code": "",
-  "replace_code": "package com.crapi.filter;\n\nimport jakarta.servlet.*;\nimport jakarta.servlet.http.HttpServletRequest;\nimport jakarta.servlet.http.HttpServletResponse;\nimport java.io.IOException;\nimport java.time.Instant;\nimport java.util.concurrent.ConcurrentHashMap;\nimport java.util.concurrent.atomic.AtomicInteger;\nimport org.springframework.stereotype.Component;\nimport org.springframework.web.filter.OncePerRequestFilter;\n\n@Component\npublic class OtpRateLimitFilter extends OncePerRequestFilter {\n\n  private final ConcurrentHashMap<String, AtomicInteger> attempts = new ConcurrentHashMap<>();\n  private final ConcurrentHashMap<String, Instant> windowStart = new ConcurrentHashMap<>();\n  private static final int MAX_ATTEMPTS = 5;\n  private static final long WINDOW_SECONDS = 600;\n\n  @Override\n  protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)\n      throws ServletException, IOException {\n    if (req.getRequestURI().contains(\"/check-otp\")) {\n      String key = req.getRemoteAddr();\n      Instant now = Instant.now();\n      windowStart.putIfAbsent(key, now);\n      if (now.getEpochSecond() - windowStart.get(key).getEpochSecond() > WINDOW_SECONDS) {\n        windowStart.put(key, now);\n        attempts.put(key, new AtomicInteger(0));\n      }\n      attempts.putIfAbsent(key, new AtomicInteger(0));\n      if (attempts.get(key).incrementAndGet() > MAX_ATTEMPTS) {\n        res.setStatus(429);\n        res.setContentType(\"application/json\");\n        res.getWriter().write(\"{\\\"message\\\":\\\"Too many OTP attempts. Please wait 10 minutes.\\\",\\\"status\\\":429}\");\n        return;\n      }\n    }\n    chain.doFilter(req, res);\n  }\n}\n"
-},
     {
-      "id": 7,
+      "id": 6,
       "vulnerability_name": "Register OtpRateLimitFilter in WebSecurityConfig and add to filter chain",
-      "description": "Autowire the new filter and add it to the Spring Security filter chain so it runs before the JWT authentication filter.",
+      "description": "Autowire the new filter and add it to the Spring Security filter chain.",
       "file_path": "services/identity/src/main/java/com/crapi/config/WebSecurityConfig.java",
       "search_code": "  @Autowired JwtAuthEntryPoint jwtUnauthorizedHandler;\n\n  @Bean\n  public JwtAuthTokenFilter authenticationJwtTokenFilter() {\n    return new JwtAuthTokenFilter();\n  }",
       "replace_code": "  @Autowired JwtAuthEntryPoint jwtUnauthorizedHandler;\n\n  @Autowired private com.crapi.filter.OtpRateLimitFilter otpRateLimitFilter;\n\n  @Bean\n  public JwtAuthTokenFilter authenticationJwtTokenFilter() {\n    return new JwtAuthTokenFilter();\n  }"
-  },
-  {
-      "id": 8,
+    },
+    {
+      "id": 7,
       "vulnerability_name": "Add OtpRateLimitFilter to the security filter chain",
-      "description": "Insert the rate-limit filter before the JWT token filter so it intercepts OTP requests first.",
+      "description": "Insert the rate-limit filter before the JWT token filter.",
       "file_path": "services/identity/src/main/java/com/crapi/config/WebSecurityConfig.java",
       "search_code": "        .addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class)",
       "replace_code": "        .addFilterBefore(otpRateLimitFilter, UsernamePasswordAuthenticationFilter.class)\n        .addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class)"
-}
+    }
   ],
   "verification": [
     {
