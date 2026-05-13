@@ -7,7 +7,7 @@
       "id": 1,
       "vulnerability_name": "Use typed request payload for coupon_code",
       "description": "Reject object payloads before query construction and enforce strict coupon format.",
-      "file_path": "services/community/api/controllers/couponController.go",
+      "file_path": "services/community/api/controllers/coupon_controller.go",
       "search_code": "var body map[string]interface{}\nif err := json.NewDecoder(r.Body).Decode(&body); err != nil { ... }\ncode := body[\"coupon_code\"]\nfilter := bson.M{\"coupon_code\": code}",
       "replace_code": "type validateCouponReq struct {\n    CouponCode string `json:\"coupon_code\"`\n}\n\nvar req validateCouponReq\ndec := json.NewDecoder(r.Body)\ndec.DisallowUnknownFields()\nif err := dec.Decode(&req); err != nil {\n    http.Error(w, \"Invalid request body\", http.StatusBadRequest)\n    return\n}\nif !regexp.MustCompile(`^[A-Za-z0-9_-]{1,32}$`).MatchString(req.CouponCode) {\n    http.Error(w, \"Invalid coupon code format\", http.StatusBadRequest)\n    return\n}\nfilter := bson.M{\"coupon_code\": req.CouponCode}"
     },

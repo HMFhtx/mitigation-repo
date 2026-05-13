@@ -7,7 +7,7 @@
       "id": 1,
       "vulnerability_name": "Deny all dot-files in nginx",
       "description": "Add top-priority location rule to block /.env and all hidden paths.",
-      "file_path": "services/gateway-service/api-gateway.conf",
+      "file_path": "services/web/nginx.conf.template",
       "search_code": "server {\n    listen 8888;",
       "replace_code": "server {\n    listen 8888;\n\n    location ~ /\\. {\n        deny all;\n        access_log off;\n        log_not_found off;\n        return 404;\n    }"
     },
@@ -16,6 +16,7 @@
       "vulnerability_name": "Exclude .env files from gateway image",
       "description": "Prevent accidental inclusion of secret files in nginx image build context.",
       "file_path": "services/gateway-service/.dockerignore",
+      "mode": "create",
       "search_code": "",
       "replace_code": ".env\n.env.*\n*.env"
     },
@@ -32,6 +33,7 @@
       "vulnerability_name": "Add CI regression for /.env exposure",
       "description": "Fail CI if gateway serves /.env with any status other than 403/404.",
       "file_path": ".github/workflows/security-smoke.yml",
+      "mode": "create",
       "search_code": "",
       "replace_code": "- name: /.env must not be served\n  run: |\n    code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8888/.env)\n    if [ \"$code\" != \"404\" ] && [ \"$code\" != \"403\" ]; then\n      echo \"FAIL: /.env returned $code\"; exit 1\n    fi"
     }

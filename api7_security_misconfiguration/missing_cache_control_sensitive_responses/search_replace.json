@@ -7,7 +7,7 @@
       "id": 1,
       "vulnerability_name": "Set default no-store at nginx gateway",
       "description": "Apply no-store/no-cache headers globally and override explicitly for public endpoints.",
-      "file_path": "services/gateway-service/api-gateway.conf",
+      "file_path": "services/web/nginx.conf.template",
       "search_code": "server {\n    listen 8888;",
       "replace_code": "server {\n    listen 8888;\n\n    add_header Cache-Control \"no-store\" always;\n    add_header Pragma        \"no-cache\" always;"
     },
@@ -15,7 +15,7 @@
       "id": 2,
       "vulnerability_name": "Override products endpoint to short public cache",
       "description": "Keep cacheability only for non-sensitive catalogue endpoint.",
-      "file_path": "services/gateway-service/api-gateway.conf",
+      "file_path": "services/web/nginx.conf.template",
       "search_code": "",
       "replace_code": "location ^~ /workshop/api/shop/products {\n    add_header Cache-Control \"public, max-age=60\" always;\n    proxy_pass http://crapi-workshop:8000;\n}"
     },
@@ -33,6 +33,7 @@
       "vulnerability_name": "Add workshop service cache-control middleware",
       "description": "Set no-store defaults at application layer in Django.",
       "file_path": "services/workshop/crapi/middleware.py",
+      "mode": "create",
       "search_code": "",
       "replace_code": "class CacheControlMiddleware:\n    def __init__(self, get_response):\n        self.get_response = get_response\n\n    def __call__(self, request):\n        response = self.get_response(request)\n        response.headers.setdefault(\"Cache-Control\", \"no-store\")\n        response.headers.setdefault(\"Pragma\", \"no-cache\")\n        return response"
     },
@@ -41,6 +42,7 @@
       "vulnerability_name": "Add CI contract test for cache-control",
       "description": "Assert sensitive endpoints always emit Cache-Control: no-store.",
       "file_path": ".github/workflows/security-smoke.yml",
+      "mode": "create",
       "search_code": "",
       "replace_code": "- name: Cache-Control must be no-store on sensitive endpoints\n  run: |\n    TOKEN=$(curl -s -X POST http://localhost:8888/identity/api/auth/login \\\n       -H 'Content-Type: application/json' \\\n       -d '{\"email\":\"test@test.com\",\"password\":\"Password123!\"}' | jq -r .token)\n\n    for URL in \\\n      /community/api/v2/community/posts \\\n      /community/api/v2/coupon/validate-coupon \\\n      /workshop/api/merchant/contact_mechanic \\\n      /workshop/api/shop/orders/return_order ; do\n      HDR=$(curl -sI \"http://localhost:8888$URL\" -H \"Authorization: Bearer $TOKEN\" | tr -d '\\r' | grep -i '^cache-control:' || true)\n      if ! echo \"$HDR\" | grep -qi 'no-store'; then\n        echo \"FAIL: $URL missing Cache-Control: no-store ($HDR)\"; exit 1\n      fi\n    done"
     }

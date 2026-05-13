@@ -15,7 +15,7 @@
       "id": 2,
       "vulnerability_name": "Reject non-HMAC and non-HS512 in community-service",
       "description": "Harden jwt.Parse keyFunc to deny alg=none and any signing method except HMAC HS512.",
-      "file_path": "services/community/api/middlewares/jwtMiddleware.go",
+      "file_path": "services/community/api/auth/token.go",
       "search_code": "token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {\n    return []byte(jwtSecret), nil\n})",
       "replace_code": "token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {\n    if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {\n        return nil, fmt.Errorf(\"unexpected signing method: %v\", t.Header[\"alg\"])\n    }\n    if alg, _ := t.Header[\"alg\"].(string); alg != \"HS512\" {\n        return nil, fmt.Errorf(\"disallowed alg: %s\", alg)\n    }\n    return []byte(jwtSecret), nil\n})"
     },
@@ -23,7 +23,7 @@
       "id": 3,
       "vulnerability_name": "Pin accepted JWT algorithms in workshop-service",
       "description": "Require algorithms=[\"HS512\"] in jwt.decode so unsigned/none tokens are rejected by PyJWT.",
-      "file_path": "services/workshop/crapi/shop/auth.py",
+      "file_path": "services/workshop/utils/jwt.py",
       "search_code": "payload = jwt.decode(token, settings.JWT_SECRET)",
       "replace_code": "import jwt\nfrom jwt.exceptions import InvalidAlgorithmError, InvalidTokenError\n\nALLOWED_ALGORITHMS = [\"HS512\"]\n\ntry:\n    payload = jwt.decode(\n        token,\n        settings.JWT_SECRET,\n        algorithms=ALLOWED_ALGORITHMS,\n    )\nexcept (InvalidAlgorithmError, InvalidTokenError) as e:\n    raise AuthenticationFailed(f\"Invalid token: {e}\")"
     }

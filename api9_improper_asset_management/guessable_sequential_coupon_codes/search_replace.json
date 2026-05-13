@@ -7,7 +7,7 @@
       "id": 1,
       "vulnerability_name": "Replace sequential coupon generator with CSPRNG",
       "description": "Generate non-enumerable random codes using crypto/rand.",
-      "file_path": "services/community/api/services/coupon_service.go",
+      "file_path": "services/community/api/models/coupon.go",
       "search_code": "func NewCouponCode() string {\n    return fmt.Sprintf(\"TRAC%03d\", next)\n}",
       "replace_code": "import (\n    \"crypto/rand\"\n    \"encoding/base32\"\n    \"strings\"\n)\n\nfunc NewCouponCode() (string, error) {\n    var buf [8]byte\n    if _, err := rand.Read(buf[:]); err != nil {\n        return \"\", err\n    }\n    enc := base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(buf[:])\n    enc = strings.ToUpper(strings.TrimRight(enc, \"=\"))\n    return enc[:12], nil\n}"
     },
@@ -15,7 +15,7 @@
       "id": 2,
       "vulnerability_name": "Bind coupon validation to entitled user",
       "description": "Reject validation if authenticated user is not entitled for coupon.",
-      "file_path": "services/community/api/controllers/couponController.go",
+      "file_path": "services/community/api/controllers/coupon_controller.go",
       "search_code": "err := db.Collection(\"coupon\").FindOne(ctx, bson.M{\n    \"coupon_code\": req.CouponCode,\n}).Decode(&coupon)",
       "replace_code": "userEmail := r.Context().Value(\"user_email\").(string)\n\nerr := db.Collection(\"coupon\").FindOne(ctx, bson.M{\n    \"coupon_code\": req.CouponCode,\n    \"entitled_emails\": userEmail,\n}).Decode(&coupon)\nif err == mongo.ErrNoDocuments {\n    http.Error(w, \"Coupon not valid for this account\", http.StatusForbidden)\n    return\n}"
     },

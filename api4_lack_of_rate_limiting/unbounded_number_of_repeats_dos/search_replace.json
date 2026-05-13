@@ -23,7 +23,7 @@
       "id": 3,
       "vulnerability_name": "Enforce endpoint throttle for contact_mechanic",
       "description": "Rate limit per user with DRF ScopedRateThrottle.",
-      "file_path": "services/workshop/crapi/settings.py",
+      "file_path": "services/workshop/crapi_site/settings.py",
       "search_code": "REST_FRAMEWORK = {",
       "replace_code": "REST_FRAMEWORK = {\n    \"DEFAULT_THROTTLE_CLASSES\": [\n        \"rest_framework.throttling.ScopedRateThrottle\",\n    ],\n    \"DEFAULT_THROTTLE_RATES\": {\n        \"contact_mechanic\": \"10/minute\",\n    },"
     },
