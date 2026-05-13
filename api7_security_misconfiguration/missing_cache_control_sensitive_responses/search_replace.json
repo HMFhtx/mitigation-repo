@@ -20,14 +20,14 @@
       "replace_code": "location ^~ /workshop/api/shop/products {\n    add_header Cache-Control \"public, max-age=60\" always;\n    proxy_pass http://crapi-workshop:8000;\n}"
     },
     {
-      "id": 3,
-      "vulnerability_name": "Add identity service cache-control filter",
-      "description": "Defence in depth for direct-to-service traffic and future gateway drift.",
-      "file_path": "services/identity/src/main/java/com/crapi/config/CacheControlFilter.java",
-      "mode": "create",
-      "search_code": "",
-      "replace_code": "@Component\npublic class CacheControlFilter extends OncePerRequestFilter {\n    @Override\n    protected void doFilterInternal(HttpServletRequest req,\n            HttpServletResponse res, FilterChain chain)\n            throws ServletException, IOException {\n        res.setHeader(\"Cache-Control\", \"no-store\");\n        res.setHeader(\"Pragma\", \"no-cache\");\n        chain.doFilter(req, res);\n    }\n}"
-    },
+  "id": 3,
+  "vulnerability_name": "Add identity service cache-control filter",
+  "description": "Defence in depth for direct-to-service traffic and future gateway drift.",
+  "file_path": "services/identity/src/main/java/com/crapi/config/CacheControlFilter.java",
+  "mode": "create",
+  "search_code": "",
+  "replace_code": "package com.crapi.config;\n\nimport jakarta.servlet.FilterChain;\nimport jakarta.servlet.ServletException;\nimport jakarta.servlet.http.HttpServletRequest;\nimport jakarta.servlet.http.HttpServletResponse;\nimport java.io.IOException;\nimport org.springframework.stereotype.Component;\nimport org.springframework.web.filter.OncePerRequestFilter;\n\n@Component\npublic class CacheControlFilter extends OncePerRequestFilter {\n    @Override\n    protected void doFilterInternal(HttpServletRequest req,\n            HttpServletResponse res, FilterChain chain)\n            throws ServletException, IOException {\n        res.setHeader(\"Cache-Control\", \"no-store\");\n        res.setHeader(\"Pragma\", \"no-cache\");\n        chain.doFilter(req, res);\n    }\n}\n"
+},
     {
       "id": 4,
       "vulnerability_name": "Add workshop service cache-control middleware",
