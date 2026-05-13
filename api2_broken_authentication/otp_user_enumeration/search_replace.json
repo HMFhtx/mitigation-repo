@@ -43,22 +43,22 @@
       "search_code": "    testImplementation(\"junit:junit:4.13.2\")\n}",
       "replace_code": "    testImplementation(\"junit:junit:4.13.2\")\n    implementation(\"com.bucket4j:bucket4j-core:8.10.1\")\n}"
     },
-    {
+     {
       "id": 7,
-      "vulnerability_name": "Register OtpRateLimitFilter in WebSecurityConfig",
+      "vulnerability_name": "Register OtpRateLimitFilter in WebSecurityConfig and add to filter chain",
       "description": "Autowire the new filter and add it to the Spring Security filter chain so it runs before the JWT authentication filter.",
       "file_path": "services/identity/src/main/java/com/crapi/config/WebSecurityConfig.java",
-      "search_code": "  @Bean\n  public JwtAuthTokenFilter authenticationJwtTokenFilter() {\n    return new JwtAuthTokenFilter();\n  }",
-      "replace_code": "  @Autowired private com.crapi.filter.OtpRateLimitFilter otpRateLimitFilter;\n\n  @Bean\n  public JwtAuthTokenFilter authenticationJwtTokenFilter() {\n    return new JwtAuthTokenFilter();\n  }"
-    },
-    {
+      "search_code": "  @Autowired JwtAuthEntryPoint jwtUnauthorizedHandler;\n\n  @Bean\n  public JwtAuthTokenFilter authenticationJwtTokenFilter() {\n    return new JwtAuthTokenFilter();\n  }",
+      "replace_code": "  @Autowired JwtAuthEntryPoint jwtUnauthorizedHandler;\n\n  @Autowired private com.crapi.filter.OtpRateLimitFilter otpRateLimitFilter;\n\n  @Bean\n  public JwtAuthTokenFilter authenticationJwtTokenFilter() {\n    return new JwtAuthTokenFilter();\n  }"
+  },
+  {
       "id": 8,
       "vulnerability_name": "Add OtpRateLimitFilter to the security filter chain",
       "description": "Insert the rate-limit filter before the JWT token filter so it intercepts OTP requests first.",
       "file_path": "services/identity/src/main/java/com/crapi/config/WebSecurityConfig.java",
       "search_code": "        .addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class)",
       "replace_code": "        .addFilterBefore(otpRateLimitFilter, UsernamePasswordAuthenticationFilter.class)\n        .addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class)"
-    }
+}
   ],
   "verification": [
     {
