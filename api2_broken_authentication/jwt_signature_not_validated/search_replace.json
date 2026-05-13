@@ -83,6 +83,30 @@
       "file_path": "services/identity/src/main/java/com/crapi/config/JwtAuthTokenFilter.java",
       "search_code": "import java.text.ParseException;\n",
       "replace_code": ""
+    },
+    {
+      "id": 11,
+      "vulnerability_name": "Fix testGetUserFromTokenThrowsExceptionWhenUserNotFound — remove stale throws ParseException",
+      "description": "getUserFromToken no longer throws checked ParseException, so the test method's throws declaration is a compile error.",
+      "file_path": "services/identity/src/test/java/com/crapi/service/Impl/UserServiceImplTest.java",
+      "search_code": "  public void testGetUserFromTokenThrowsExceptionWhenUserNotFound() throws ParseException {",
+      "replace_code": "  public void testGetUserFromTokenThrowsExceptionWhenUserNotFound() {"
+    },
+    {
+      "id": 12,
+      "vulnerability_name": "Fix testGetUserFromToken — remove unreachable catch (ParseException) block",
+      "description": "The mock setup inside the try block cannot throw ParseException; the catch is now unreachable and causes a compile error.",
+      "file_path": "services/identity/src/test/java/com/crapi/service/Impl/UserServiceImplTest.java",
+      "search_code": "    try {\n      Mockito.when(jwtAuthTokenFilter.getUserFromToken(Mockito.any())).thenReturn(user.getEmail());\n    } catch (ParseException e) {\n      logger.error(\"Error in parsing token\");\n    }",
+      "replace_code": "    Mockito.when(jwtAuthTokenFilter.getUserFromToken(Mockito.any())).thenReturn(user.getEmail());"
+    },
+    {
+      "id": 13,
+      "vulnerability_name": "Remove unused ParseException import from UserServiceImplTest",
+      "description": "After removing the throws declaration and catch block, java.text.ParseException is no longer referenced in the test file.",
+      "file_path": "services/identity/src/test/java/com/crapi/service/Impl/UserServiceImplTest.java",
+      "search_code": "import java.text.ParseException;\n",
+      "replace_code": ""
     }
   ],
   "verification": [
