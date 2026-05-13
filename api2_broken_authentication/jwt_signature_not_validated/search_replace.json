@@ -43,6 +43,30 @@
       "mode": "create",
       "search_code": "",
       "replace_code": "package com.crapi.integration;\n\nimport org.junit.jupiter.api.Test;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;\nimport org.springframework.boot.test.context.SpringBootTest;\nimport org.springframework.test.web.servlet.MockMvc;\n\nimport static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;\nimport static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;\n\n@SpringBootTest\n@AutoConfigureMockMvc\npublic class DashboardAuthTest {\n\n    @Autowired\n    private MockMvc mockMvc;\n\n    @Test\n    public void dashboardWithoutTokenReturns401() throws Exception {\n        mockMvc.perform(get(\"/identity/api/v2/user/dashboard\"))\n               .andExpect(status().isUnauthorized());\n    }\n}\n"
+    },
+    {
+      "id": 6,
+      "vulnerability_name": "Fix getUserFromToken — replace unreachable ParseException catch with RuntimeException",
+      "description": "getUserNameFromJwtToken no longer throws checked ParseException; it now throws JwtException (unchecked). Replace the catch so invalid tokens still result in EntityNotFoundException instead of a compile error.",
+      "file_path": "services/identity/src/main/java/com/crapi/service/Impl/UserServiceImpl.java",
+      "search_code": "    } catch (ParseException exception) {\n      log.error(\"fail to get username from token -> Message:%d\", exception);\n      throw new EntityNotFoundException(User.class, \"userEmail\", username);\n    }\n  }",
+      "replace_code": "    } catch (RuntimeException exception) {\n      log.error(\"fail to get username from token -> Message:{}\", exception.getMessage());\n      throw new EntityNotFoundException(User.class, \"userEmail\", username);\n    }\n  }"
+    },
+    {
+      "id": 7,
+      "vulnerability_name": "Fix getUserFromTokenWithoutValidation — replace unreachable ParseException catch with RuntimeException",
+      "description": "Same as step 6 but for the getUserFromTokenWithoutValidation method, which also calls getUserNameFromJwtToken and previously caught its now-removed checked exception.",
+      "file_path": "services/identity/src/main/java/com/crapi/service/Impl/UserServiceImpl.java",
+      "search_code": "    } catch (ParseException exception) {\n      log.error(\"fail to get username from token -> Message:%d\", exception);\n      throw new EntityNotFoundException(User.class, \"userEmail\");\n    }\n  }",
+      "replace_code": "    } catch (RuntimeException exception) {\n      log.error(\"fail to get username from token -> Message:{}\", exception.getMessage());\n      throw new EntityNotFoundException(User.class, \"userEmail\");\n    }\n  }"
+    },
+    {
+      "id": 8,
+      "vulnerability_name": "Remove unused ParseException import from UserServiceImpl",
+      "description": "After replacing both catch blocks, java.text.ParseException is no longer referenced in UserServiceImpl.",
+      "file_path": "services/identity/src/main/java/com/crapi/service/Impl/UserServiceImpl.java",
+      "search_code": "import java.text.ParseException;\n",
+      "replace_code": ""
     }
   ],
   "verification": [
