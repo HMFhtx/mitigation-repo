@@ -7,7 +7,7 @@
       "id": 1,
       "vulnerability_name": "Retire v2.7 login-with-token — return HTTP 410 Gone immediately",
       "description": "The /v2.7/user/login-with-token endpoint was never removed and crashes with HTTP 500 when called. Replace the entire method body with an immediate HTTP 410 Gone response that never delegates to the service layer.",
-      "file_path": "src/main/java/com/crapi/controller/AuthController.java",
+      "file_path": "services/identity/src/main/java/com/crapi/controller/AuthController.java",
       "search_code": "  @PostMapping(\"/v2.7/user/login-with-token\")\n  public ResponseEntity<JwtResponse> loginWithTokenV2(\n      @Valid @RequestBody LoginWithEmailToken loginWithEmailToken) {\n    JwtResponse jwt = userService.loginWithEmailTokenV2(loginWithEmailToken);\n    if (jwt.getToken() != null && jwt.getToken().length() > 5) {\n      return ResponseEntity.status(HttpStatus.OK).body(jwt);\n    }\n    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(jwt);\n  }",
       "replace_code": "  @PostMapping(\"/v2.7/user/login-with-token\")\n  public ResponseEntity<CRAPIResponse> loginWithTokenV2(\n      @RequestBody(required = false) Object ignored) {\n    return ResponseEntity.status(HttpStatus.GONE)\n        .body(\n            new CRAPIResponse(\n                \"This endpoint has been permanently retired for security reasons.\"\n                    + \" Use POST /identity/api/auth/login instead.\",\n                410));\n  }"
     }
