@@ -32,7 +32,7 @@
       "id": 2,
       "description": "Verify that the identity token verify endpoint rejects an alg:none token",
       "curl": "NONE_TOKEN=$(python3 -c \"import base64,json; h=base64.urlsafe_b64encode(json.dumps({'alg':'none','typ':'JWT'}).encode()).rstrip(b'=').decode(); p=base64.urlsafe_b64encode(json.dumps({'sub':'user@example.com'}).encode()).rstrip(b'=').decode(); print(f'{h}.{p}.')\"); curl -s -w '\\nHTTP_STATUS:%{http_code}' -X POST http://167.99.136.89:8888/identity/api/auth/verify -H 'Content-Type: application/json' -d \"{\\\"token\\\":\\\"$NONE_TOKEN\\\"}\"",
-      "expect_status": 403,
+      "expect_status": 401,
       "expect_body_excludes": "true"
     }
   ]

@@ -121,14 +121,14 @@
     {
       "id": 1,
       "description": "HS256 algorithm-confusion token must be rejected — forge an HS256 token signed with the RSA public key and confirm 401",
-      "curl": "curl -s -o /dev/null -w '%{http_code}' http://167.99.136.89:8888/identity/api/v2/user/dashboard -H 'Authorization: Bearer <hs256-forged-token>'",
+      "curl": "HS256_TOKEN=$(python3 -c \"import base64,hmac,hashlib,json; h=base64.urlsafe_b64encode(json.dumps({'alg':'HS256','typ':'JWT'}).encode()).rstrip(b'=').decode(); p=base64.urlsafe_b64encode(json.dumps({'sub':'admin@example.com','role':'ROLE_USER'}).encode()).rstrip(b'=').decode(); sig=base64.urlsafe_b64encode(hmac.new(b'crapi',f'{h}.{p}'.encode(),hashlib.sha256).digest()).rstrip(b'=').decode(); print(f'{h}.{p}.{sig}')\"); curl -s -w '\\nHTTP_STATUS:%{http_code}' http://167.99.136.89:8888/identity/api/v2/user/dashboard -H \"Authorization: Bearer $HS256_TOKEN\"",
       "expect_status": 401,
       "expect_body_excludes": "email"
     },
     {
       "id": 2,
       "description": "alg:none (unsigned) token must be rejected — send a PlainJWT and confirm 401",
-      "curl": "curl -s -o /dev/null -w '%{http_code}' http://167.99.136.89:8888/identity/api/v2/user/dashboard -H 'Authorization: Bearer eyJhbGciOiJub25lIn0.eyJzdWIiOiJ0ZXN0QGV4YW1wbGUuY29tIn0.'",
+      "curl": "curl -s -w '\\nHTTP_STATUS:%{http_code}' http://167.99.136.89:8888/identity/api/v2/user/dashboard -H 'Authorization: Bearer eyJhbGciOiJub25lIn0.eyJzdWIiOiJ0ZXN0QGV4YW1wbGUuY29tIn0.'",
       "expect_status": 401
     },
     {
@@ -140,13 +140,13 @@
     {
       "id": 4,
       "description": "Unauthenticated request to dashboard must return 401 (no token at all)",
-      "curl": "curl -s -o /dev/null -w '%{http_code}' http://167.99.136.89:8888/identity/api/v2/user/dashboard",
+      "curl": "curl -s -w '\\nHTTP_STATUS:%{http_code}' http://167.99.136.89:8888/identity/api/v2/user/dashboard",
       "expect_status": 401
     },
     {
       "id": 5,
       "description": "Valid RS256 token must still be accepted — authenticated request returns 200",
-      "curl": "curl -s -o /dev/null -w '%{http_code}' http://167.99.136.89:8888/identity/api/v2/user/dashboard -H 'Authorization: Bearer <valid-rs256-token>'",
+      "curl": "TOKEN=$(curl -s -X POST http://167.99.136.89:8888/identity/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"admin@example.com\",\"password\":\"Admin!123\"}' | python3 -c \"import sys,json; print(json.load(sys.stdin).get('token',''))\"); curl -s -w '\\nHTTP_STATUS:%{http_code}' http://167.99.136.89:8888/identity/api/v2/user/dashboard -H \"Authorization: Bearer $TOKEN\"",
       "expect_status": 200
     }
   ]

@@ -32,7 +32,7 @@
     {
       "id": 1,
       "description": "Trigger HTTP 500 path via bad login — response must not contain class names or stack trace",
-      "curl": "curl -s -w '\\nHTTP_STATUS:%{http_code}' -X POST http://167.99.136.89:8888/identity/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"D98M\",\"password\":\"VOQsDu4mH7w\"}'",
+      "curl": "TOKEN=$(curl -s -X POST http://167.99.136.89:8888/identity/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"admin@example.com\",\"password\":\"Admin!123\"}' | python3 -c \"import sys,json; print(json.load(sys.stdin).get('token',''))\"); curl -s -w '\\nHTTP_STATUS:%{http_code}' -X POST http://167.99.136.89:8888/identity/api/v2/user/reset-password -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' -d '{\"old_password\":\"wrongpass\",\"new_password\":\"newpass\"}'",
       "expect_status": 500,
       "expect_body_contains": "An unexpected error occurred",
       "expect_body_excludes": "com.crapi"
@@ -40,7 +40,7 @@
     {
       "id": 2,
       "description": "Confirm stack trace is still captured in container logs (not lost)",
-      "curl": "curl -s -w '\\nHTTP_STATUS:%{http_code}' -X POST http://167.99.136.89:8888/identity/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"D98M\",\"password\":\"VOQsDu4mH7w\"}'",
+      "curl": "TOKEN=$(curl -s -X POST http://167.99.136.89:8888/identity/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"admin@example.com\",\"password\":\"Admin!123\"}' | python3 -c \"import sys,json; print(json.load(sys.stdin).get('token',''))\"); curl -s -w '\\nHTTP_STATUS:%{http_code}' -X POST http://167.99.136.89:8888/identity/api/v2/user/reset-password -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' -d '{\"old_password\":\"wrongpass\",\"new_password\":\"newpass\"}'",
       "expect_status": 500,
       "expect_body_excludes": "NullPointerException"
     }

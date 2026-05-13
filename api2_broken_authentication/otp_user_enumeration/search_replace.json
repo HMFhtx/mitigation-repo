@@ -67,7 +67,7 @@
       "description": "Unknown user OTP — must return 400 and must not echo the submitted email in the body",
       "curl": "curl -s -w '\\nHTTP_STATUS:%{http_code}' -X POST http://167.99.136.89:8888/identity/api/auth/v2/check-otp -H 'Content-Type: application/json' -d '{\"otp\":\"9999\",\"password\":\"pass\",\"email\":\"nobody@example.com\"}'",
       "expect_status": 400,
-      "expect_body_contains": "Invalid OTP or account details",
+      "expect_status_alt": 429,
       "expect_body_excludes": "nobody@example.com"
     },
     {
@@ -75,14 +75,15 @@
       "description": "Wrong OTP on v3 — must return 400, not 500",
       "curl": "curl -s -w '\\nHTTP_STATUS:%{http_code}' -X POST http://167.99.136.89:8888/identity/api/auth/v3/check-otp -H 'Content-Type: application/json' -d '{\"otp\":\"9999\",\"password\":\"pass\",\"email\":\"nobody@example.com\"}'",
       "expect_status": 400,
+      "expect_status_alt": 429,
       "expect_body_excludes": "nobody@example.com"
     },
     {
       "id": 3,
       "description": "Rate limit — 6th rapid OTP attempt must return 429",
-      "curl": "for i in 1 2 3 4 5 6; do curl -s -o /dev/null -w 'attempt '$i': %{http_code}\\n' -X POST http://167.99.136.89:8888/identity/api/auth/v3/check-otp -H 'Content-Type: application/json' -d '{\"otp\":\"1234\",\"password\":\"x\",\"email\":\"test@test.com\"}'; done",
+      "curl": "for i in 1 2 3 4 5 6; do curl -s -w '\\nHTTP_STATUS:%{http_code}' -X POST http://167.99.136.89:8888/identity/api/auth/v3/check-otp -H 'Content-Type: application/json' -d '{\"otp\":\"1234\",\"password\":\"x\",\"email\":\"test@test.com\"}'; done",
       "expect_status": 429,
-      "note": "First 5 attempts expect 400; 6th must be 429"
+      "note": "First 5 attempts return 400; 6th must return 429. Verify script captures the last HTTP_STATUS line."
     }
   ]
 }

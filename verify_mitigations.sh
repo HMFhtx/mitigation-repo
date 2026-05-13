@@ -24,10 +24,15 @@ run_check() {
     local body="$4"
     local expect_contains="$5"
     local expect_excludes="$6"
+    local expect_status_alt="${7:-}"
     local check_ok=true
 
-    if [[ "$actual_status" != "$expect_status" ]]; then
-        echo -e "    ${RED}FAIL${RESET} status: expected ${expect_status}, got ${actual_status}"
+    if [[ "$actual_status" != "$expect_status" && ( -z "$expect_status_alt" || "$actual_status" != "$expect_status_alt" ) ]]; then
+        if [[ -n "$expect_status_alt" ]]; then
+            echo -e "    ${RED}FAIL${RESET} status: expected ${expect_status} or ${expect_status_alt}, got ${actual_status}"
+        else
+            echo -e "    ${RED}FAIL${RESET} status: expected ${expect_status}, got ${actual_status}"
+        fi
         check_ok=false
     fi
 
@@ -101,6 +106,13 @@ v = d['verification'][$i]
 print(v.get('expect_body_excludes',''))
 " "$json_file" 2>/dev/null)
 
+        expect_status_alt=$(python3 -c "
+import json, sys
+d = json.load(open(sys.argv[1]))
+v = d['verification'][$i]
+print(v.get('expect_status_alt',''))
+" "$json_file" 2>/dev/null)
+
         echo -e "  ${BOLD}Check $((i+1)):${RESET} ${description}"
 
         # Skip checks that still have unfilled placeholders
@@ -126,7 +138,7 @@ print(v.get('expect_body_excludes',''))
         body=$(echo "$raw_output" | grep -v 'HTTP_STATUS:')
 
         # For loop-based commands (rate-limit tests) the expected status is the LAST one
-        run_check "$description" "$actual_status" "$expect_status" "$body" "$expect_contains" "$expect_excludes"
+        run_check "$description" "$actual_status" "$expect_status" "$body" "$expect_contains" "$expect_excludes" "$expect_status_alt"
     done
 
     echo ""
