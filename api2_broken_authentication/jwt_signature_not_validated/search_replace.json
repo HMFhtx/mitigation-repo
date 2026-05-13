@@ -1,0 +1,121 @@
+{
+  "vulnerability": "API2-2023",
+  "owasp_tag": "Broken Authentication",
+  "subcategory": "JWT Signature Not Validated",
+  "steps": [
+    {
+      "id": 1,
+      "vulnerability_name": "Fix getUserNameFromJwtToken — verify signature before extracting subject",
+      "description": "Replace the unverified JWTParser.parse() call with JJWT's verifying parser so the subject is only returned from a cryptographically valid token.",
+      "file_path": "services/identity/src/main/java/com/crapi/config/JwtProvider.java",
+      "search_code": "  public String getUserNameFromJwtToken(String token) throws ParseException {\n    // Parse without verifying token signature\n    return JWTParser.parse(token).getJWTClaimsSet().getSubject();\n  }",
+      "replace_code": "  public String getUserNameFromJwtToken(String token) {\n    return Jwts.parser()\n        .verifyWith((java.security.PublicKey) this.keyPair.getPublic())\n        .build()\n        .parseSignedClaims(token)\n        .getPayload()\n        .getSubject();\n  }"
+    },
+    {
+      "id": 2,
+      "vulnerability_name": "Remove algorithm-confusion helpers and rewrite validateJwtToken to enforce RS256 only",
+      "description": "Delete getKeyFromJkuHeader (arbitrary-URL SSRF) and getJwtSecret (HS256 algorithm-confusion via RSA public key). Replace the vulnerable validateJwtToken with a strict RS256 check using JJWT's verifyWith, which rejects HS256, alg:none, and external JKU headers.",
+      "file_path": "services/identity/src/main/java/com/crapi/config/JwtProvider.java",
+      "search_code": "  // Load RSA Public Key for JKU header if present\n  private RSAKey getKeyFromJkuHeader(JWSHeader header) {\n    try {\n      URI jku = header.getJWKURL();\n      if (jku != null) {\n        URLConnection connection = jku.toURL().openConnection();\n        JWKSet jwkSet = JWKSet.load(connection.getInputStream());\n        connection.getInputStream().close();\n        log.info(\"JWKSet from URL : \" + jwkSet.toString(false));\n        JWK key = jwkSet.getKeyByKeyId(header.getKeyID());\n        if (key != null && Objects.equals(key.getAlgorithm().getName(), \"RS256\")) {\n          return key.toRSAKey().toPublicJWK();\n        }\n      }\n    } catch (IOException | ParseException e) {\n      return null;\n    }\n\n    return null;\n  }\n\n  // Construct secret for JWT Verification through HS256 (vulnerability)\n  private String getJwtSecret(JWSHeader header) throws JOSEException {\n    // defaultSecret is RSA Public Key as String\n    // Algorithm Confusion Attack\n    Base64.Encoder encoder = Base64.getEncoder();\n    String defaultSecret = encoder.encodeToString(this.publicRSAKey.toPublicKey().getEncoded());\n\n    // Check if KID header is pointing to /dev/null file\n    String kid = header.getKeyID();\n    if (kid != null && kid.contains(\"/dev/null\")) {\n      return \"AA==\";\n    }\n\n    return defaultSecret;\n  }\n\n  /**\n   * @param authToken\n   * @return validate token expire and true boolean\n   */\n  public boolean validateJwtToken(String authToken) {\n    try {\n      SignedJWT signedJWT = SignedJWT.parse(authToken);\n      JWSHeader header = signedJWT.getHeader();\n      Algorithm alg = header.getAlgorithm();\n      boolean valid = false;\n      // JWT Algorithm confusion vulnerability\n      log.debug(\"Algorithm: \" + alg.getName());\n      JWSVerifier verifier;\n      if (Objects.equals(alg.getName(), \"HS256\")) {\n        String secret = getJwtSecret(header);\n        log.debug(\"JWT Secret: \" + secret);\n        verifier = new MACVerifier(secret.getBytes(StandardCharsets.UTF_8));\n      } else {\n        RSAKey verificationKey = getKeyFromJkuHeader(header);\n        if (verificationKey == null) {\n          log.debug(\"Key from JWKS: \" + this.publicRSAKey.toJSONString());\n          verifier = new RSASSAVerifier(this.publicRSAKey);\n        } else {\n          log.debug(\"Key from JKU: \" + verificationKey.toJSONString());\n          verifier = new RSASSAVerifier(verificationKey);\n        }\n        valid = signedJWT.verify(verifier);\n        log.debug(\"JWT valid?: \" + valid);\n        return valid;\n      }\n\n    } catch (ParseException e) {\n      log.error(\"Could not parse JWT Token -> Message: %d\", e);\n    } catch (JOSEException e) {\n      log.error(\"RSA JWK Extraction failed -> Message: %d\", e);\n    }\n\n    return false;\n  }\n}",
+      "replace_code": "  /**\n   * @param authToken\n   * @return validate token expire and true boolean\n   */\n  public boolean validateJwtToken(String authToken) {\n    try {\n      Jwts.parser()\n          .verifyWith((java.security.PublicKey) this.keyPair.getPublic())\n          .build()\n          .parseSignedClaims(authToken);\n      return true;\n    } catch (JwtException | IllegalArgumentException e) {\n      log.error(\"JWT validation failed -> Message: {}\", e.getMessage());\n    }\n    return false;\n  }\n}"
+    },
+    {
+      "id": 3,
+      "vulnerability_name": "Remove unused Nimbus JWT/crypto imports from JwtProvider",
+      "description": "After removing the algorithm-confusion helpers, the MACVerifier, RSASSAVerifier, JWTParser, PlainJWT, SignedJWT, URI, URLConnection, and StandardCharsets imports are no longer referenced.",
+      "file_path": "services/identity/src/main/java/com/crapi/config/JwtProvider.java",
+      "search_code": "import com.nimbusds.jose.crypto.MACVerifier;\nimport com.nimbusds.jose.crypto.RSASSAVerifier;\nimport com.nimbusds.jose.jwk.JWK;\nimport com.nimbusds.jose.jwk.JWKSet;\nimport com.nimbusds.jose.jwk.RSAKey;\nimport com.nimbusds.jwt.JWTParser;\nimport com.nimbusds.jwt.PlainJWT;\nimport com.nimbusds.jwt.SignedJWT;\nimport io.jsonwebtoken.*;\nimport java.io.ByteArrayInputStream;\nimport java.io.IOException;\nimport java.io.InputStream;\nimport java.math.BigDecimal;\nimport java.net.URI;\nimport java.net.URLConnection;\nimport java.nio.charset.StandardCharsets;\nimport java.security.KeyPair;\nimport java.text.ParseException;\nimport java.util.*;",
+      "replace_code": "import com.nimbusds.jose.jwk.JWK;\nimport com.nimbusds.jose.jwk.JWKSet;\nimport com.nimbusds.jose.jwk.RSAKey;\nimport io.jsonwebtoken.*;\nimport java.io.ByteArrayInputStream;\nimport java.io.IOException;\nimport java.io.InputStream;\nimport java.math.BigDecimal;\nimport java.security.KeyPair;\nimport java.text.ParseException;\nimport java.util.*;"
+    },
+    {
+      "id": 4,
+      "vulnerability_name": "Require authentication on /identity/api/v2/user/dashboard",
+      "description": "The dashboard endpoint was incorrectly marked .permitAll(), allowing unauthenticated access to user data. Change it to .authenticated() so the JWT filter is enforced.",
+      "file_path": "services/identity/src/main/java/com/crapi/config/WebSecurityConfig.java",
+      "search_code": "                    .requestMatchers(\"/identity/api/v2/user/dashboard\")\n                    .permitAll()",
+      "replace_code": "                    .requestMatchers(\"/identity/api/v2/user/dashboard\")\n                    .authenticated()"
+    },
+    {
+      "id": 5,
+      "vulnerability_name": "Add integration test verifying dashboard requires authentication",
+      "description": "New test that confirms an unauthenticated GET /identity/api/v2/user/dashboard returns HTTP 401.",
+      "file_path": "services/identity/src/test/java/com/crapi/integration/DashboardAuthTest.java",
+      "mode": "create",
+      "search_code": "",
+      "replace_code": "package com.crapi.integration;\n\nimport org.junit.jupiter.api.Test;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;\nimport org.springframework.boot.test.context.SpringBootTest;\nimport org.springframework.test.web.servlet.MockMvc;\n\nimport static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;\nimport static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;\n\n@SpringBootTest\n@AutoConfigureMockMvc\npublic class DashboardAuthTest {\n\n    @Autowired\n    private MockMvc mockMvc;\n\n    @Test\n    public void dashboardWithoutTokenReturns401() throws Exception {\n        mockMvc.perform(get(\"/identity/api/v2/user/dashboard\"))\n               .andExpect(status().isUnauthorized());\n    }\n}\n"
+    },
+    {
+      "id": 6,
+      "vulnerability_name": "Fix getUserFromToken — replace unreachable ParseException catch with RuntimeException",
+      "description": "getUserNameFromJwtToken no longer throws checked ParseException; it now throws JwtException (unchecked). Replace the catch so invalid tokens still result in EntityNotFoundException instead of a compile error.",
+      "file_path": "services/identity/src/main/java/com/crapi/service/Impl/UserServiceImpl.java",
+      "search_code": "    } catch (ParseException exception) {\n      log.error(\"fail to get username from token -> Message:%d\", exception);\n      throw new EntityNotFoundException(User.class, \"userEmail\", username);\n    }\n  }",
+      "replace_code": "    } catch (RuntimeException exception) {\n      log.error(\"fail to get username from token -> Message:{}\", exception.getMessage());\n      throw new EntityNotFoundException(User.class, \"userEmail\", username);\n    }\n  }"
+    },
+    {
+      "id": 7,
+      "vulnerability_name": "Fix getUserFromTokenWithoutValidation — replace unreachable ParseException catch with RuntimeException",
+      "description": "Same as step 6 but for the getUserFromTokenWithoutValidation method, which also calls getUserNameFromJwtToken and previously caught its now-removed checked exception.",
+      "file_path": "services/identity/src/main/java/com/crapi/service/Impl/UserServiceImpl.java",
+      "search_code": "    } catch (ParseException exception) {\n      log.error(\"fail to get username from token -> Message:%d\", exception);\n      throw new EntityNotFoundException(User.class, \"userEmail\");\n    }\n  }",
+      "replace_code": "    } catch (RuntimeException exception) {\n      log.error(\"fail to get username from token -> Message:{}\", exception.getMessage());\n      throw new EntityNotFoundException(User.class, \"userEmail\");\n    }\n  }"
+    },
+    {
+      "id": 8,
+      "vulnerability_name": "Remove unused ParseException import from UserServiceImpl",
+      "description": "After replacing both catch blocks, java.text.ParseException is no longer referenced in UserServiceImpl.",
+      "file_path": "services/identity/src/main/java/com/crapi/service/Impl/UserServiceImpl.java",
+      "search_code": "import java.text.ParseException;\n",
+      "replace_code": ""
+    },
+    {
+      "id": 9,
+      "vulnerability_name": "Remove stale throws ParseException from JwtAuthTokenFilter.getUserFromToken",
+      "description": "getUserNameFromJwtToken no longer throws ParseException, so getUserFromToken's throws declaration is stale. Removing it stops the caller (UserServiceImpl) from being required to catch a checked exception that can never be thrown.",
+      "file_path": "services/identity/src/main/java/com/crapi/config/JwtAuthTokenFilter.java",
+      "search_code": "  public String getUserFromToken(HttpServletRequest request) throws ParseException {\n",
+      "replace_code": "  public String getUserFromToken(HttpServletRequest request) {\n"
+    },
+    {
+      "id": 10,
+      "vulnerability_name": "Remove unused ParseException import from JwtAuthTokenFilter",
+      "description": "After removing the throws declaration, java.text.ParseException is no longer referenced in JwtAuthTokenFilter.",
+      "file_path": "services/identity/src/main/java/com/crapi/config/JwtAuthTokenFilter.java",
+      "search_code": "import java.text.ParseException;\n",
+      "replace_code": ""
+    }
+  ],
+  "verification": [
+    {
+      "id": 1,
+      "description": "HS256 algorithm-confusion token must be rejected — forge an HS256 token signed with the RSA public key and confirm 401",
+      "curl": "curl -s -o /dev/null -w '%{http_code}' http://localhost:8888/identity/api/v2/user/dashboard -H 'Authorization: Bearer <hs256-forged-token>'",
+      "expect_status": 401,
+      "expect_body_excludes": "email"
+    },
+    {
+      "id": 2,
+      "description": "alg:none (unsigned) token must be rejected — send a PlainJWT and confirm 401",
+      "curl": "curl -s -o /dev/null -w '%{http_code}' http://localhost:8888/identity/api/v2/user/dashboard -H 'Authorization: Bearer eyJhbGciOiJub25lIn0.eyJzdWIiOiJ0ZXN0QGV4YW1wbGUuY29tIn0.'",
+      "expect_status": 401
+    },
+    {
+      "id": 3,
+      "description": "JKU header injection must be rejected — token with a jku header pointing to attacker-controlled URL must return 401",
+      "curl": "curl -s -o /dev/null -w '%{http_code}' http://localhost:8888/identity/api/v2/user/dashboard -H 'Authorization: Bearer <jku-injected-token>'",
+      "expect_status": 401
+    },
+    {
+      "id": 4,
+      "description": "Unauthenticated request to dashboard must return 401 (no token at all)",
+      "curl": "curl -s -o /dev/null -w '%{http_code}' http://localhost:8888/identity/api/v2/user/dashboard",
+      "expect_status": 401
+    },
+    {
+      "id": 5,
+      "description": "Valid RS256 token must still be accepted — authenticated request returns 200",
+      "curl": "curl -s -o /dev/null -w '%{http_code}' http://localhost:8888/identity/api/v2/user/dashboard -H 'Authorization: Bearer <valid-rs256-token>'",
+      "expect_status": 200
+    }
+  ]
+}
