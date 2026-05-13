@@ -97,8 +97,8 @@
       "vulnerability_name": "Fix testGetUserFromToken — remove unreachable catch (ParseException) block",
       "description": "The mock setup inside the try block cannot throw ParseException; the catch is now unreachable and causes a compile error.",
       "file_path": "services/identity/src/test/java/com/crapi/service/Impl/UserServiceImplTest.java",
-      "search_code": "    try {\n      Mockito.when(jwtAuthTokenFilter.getUserFromToken(Mockito.any())).thenReturn(user.getEmail());\n    } catch (ParseException e) {\n      logger.error(\"Error in parsing token\");\n    }",
-      "replace_code": "    Mockito.when(jwtAuthTokenFilter.getUserFromToken(Mockito.any())).thenReturn(user.getEmail());"
+      "search_code": "    try {\n      Mockito.when(jwtAuthTokenFilter.getUserFromToken(Mockito.any())).thenReturn(user.getEmail());\n    } catch (ParseException e) {\n      logger.error(\"Error in parsing token\");\n    }\n    Assertions.assertEquals(userService.getUserFromToken(getMockHttpRequest()), user);",
+      "replace_code": "    Mockito.when(jwtAuthTokenFilter.getUserFromToken(Mockito.any())).thenReturn(user.getEmail());\n    Assertions.assertEquals(userService.getUserFromToken(getMockHttpRequest()), user);"
     },
     {
       "id": 13,
