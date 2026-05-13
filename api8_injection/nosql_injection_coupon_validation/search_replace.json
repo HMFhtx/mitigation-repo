@@ -1,0 +1,70 @@
+{
+  "vulnerability": "API8-2023",
+  "owasp_tag": "Security Misconfiguration",
+  "subcategory": "NoSQL Injection in Coupon Validation",
+  "steps": [
+    {
+      "id": 1,
+      "vulnerability_name": "Harden ValidateCode — accept a plain string and build the MongoDB query internally",
+      "description": "The original signature accepted a raw bson.M from the caller, allowing the caller to pass attacker-controlled MongoDB operators directly into the query. Changing the parameter to a plain string and constructing bson.M{\"coupon_code\": couponCode} inside the model ensures only a string equality filter is ever used.",
+      "file_path": "services/community/api/models/coupon.go",
+      "search_code": "//ValidateCode write query in mongodb for check coupon code\nfunc ValidateCode(client *mongo.Client, db *gorm.DB, bsonMap bson.M) (Coupon, error) {\n\tvar result Coupon\n\n\t// Get a handle for your collection\n\tcollection := client.Database(\"crapi\").Collection(\"coupons\")\n\n\terr := collection.FindOne(context.TODO(), bsonMap).Decode(&result)\n\tif err != nil {\n\t\treturn result, err\n\t}\n\treturn result, err\n}",
+      "replace_code": "//ValidateCode write query in mongodb for check coupon code\nfunc ValidateCode(client *mongo.Client, db *gorm.DB, couponCode string) (Coupon, error) {\n\tvar result Coupon\n\n\t// Get a handle for your collection\n\tcollection := client.Database(\"crapi\").Collection(\"coupons\")\n\n\terr := collection.FindOne(context.TODO(), bson.M{\"coupon_code\": couponCode}).Decode(&result)\n\tif err != nil {\n\t\treturn result, err\n\t}\n\treturn result, err\n}"
+    },
+    {
+      "id": 2,
+      "vulnerability_name": "Rewrite ValidateCoupon — unmarshal into a typed struct and pass only the coupon_code string",
+      "description": "The controller was unmarshalling the request body into a bson.M and forwarding it verbatim to the database query, enabling NoSQL operator injection. Replacing it with a models.Coupon struct ensures only the string coupon_code field is extracted before being passed to ValidateCode.",
+      "file_path": "services/community/api/controllers/coupon_controller.go",
+      "search_code": "func (s *Server) ValidateCoupon(w http.ResponseWriter, r *http.Request) {\n\n\t//coupon := models.CouponBody{}\n\tvar bsonMap bson.M\n\n\tbody, err := io.ReadAll(r.Body)\n\tdefer func() {\n\t\tif err := r.Body.Close(); err != nil {\n\t\t\tlog.Println(\"Error closing request body:\", err)\n\t\t}\n\t}()\n\tif err != nil {\n\t\tresponses.ERROR(w, http.StatusBadRequest, err)\n\t\tlog.Println(\"No payload for ValidateCoupon\", string(body), err)\n\t\treturn\n\t}\n\terr = json.Unmarshal(body, &bsonMap)\n\tif err != nil {\n\t\tresponses.ERROR(w, http.StatusUnprocessableEntity, err)\n\t\tlog.Println(\"Failed to read json body\", err)\n\t\treturn\n\t}\n\tcouponData, err := models.ValidateCode(s.Client, s.DB, bsonMap)\n\n\tif err != nil {\n\t\tlog.Println(\"Error fetching Coupon\", couponData, err)\n\t\tresponses.JSON(w, http.StatusInternalServerError, err)\n\t\treturn\n\t}\n\tresponses.JSON(w, http.StatusOK, couponData)\n}",
+      "replace_code": "func (s *Server) ValidateCoupon(w http.ResponseWriter, r *http.Request) {\n\n\tvar coupon models.Coupon\n\n\tbody, err := io.ReadAll(r.Body)\n\tdefer func() {\n\t\tif err := r.Body.Close(); err != nil {\n\t\t\tlog.Println(\"Error closing request body:\", err)\n\t\t}\n\t}()\n\tif err != nil {\n\t\tresponses.ERROR(w, http.StatusBadRequest, err)\n\t\tlog.Println(\"No payload for ValidateCoupon\", string(body), err)\n\t\treturn\n\t}\n\terr = json.Unmarshal(body, &coupon)\n\tif err != nil {\n\t\tresponses.ERROR(w, http.StatusUnprocessableEntity, err)\n\t\tlog.Println(\"Failed to read json body\", err)\n\t\treturn\n\t}\n\tif coupon.CouponCode == \"\" {\n\t\tresponses.ERROR(w, http.StatusBadRequest, errors.New(\"coupon_code is required\"))\n\t\treturn\n\t}\n\tcouponData, err := models.ValidateCode(s.Client, s.DB, coupon.CouponCode)\n\n\tif err != nil {\n\t\tlog.Println(\"Error fetching Coupon\", couponData, err)\n\t\tresponses.JSON(w, http.StatusInternalServerError, err)\n\t\treturn\n\t}\n\tresponses.JSON(w, http.StatusOK, couponData)\n}"
+    },
+    {
+      "id": 3,
+      "vulnerability_name": "Update coupon_controller imports — remove bson, add errors",
+      "description": "After rewriting ValidateCoupon, the bson package is no longer imported by the controller. The errors package is added for the new empty-code guard.",
+      "file_path": "services/community/api/controllers/coupon_controller.go",
+      "search_code": "import (\n\t\"encoding/json\"\n\t\"io\"\n\t\"log\"\n\t\"net/http\"\n\n\t\"crapi.proj/goservice/api/models\"\n\t\"crapi.proj/goservice/api/responses\"\n\t\"go.mongodb.org/mongo-driver/bson\"\n)",
+      "replace_code": "import (\n\t\"encoding/json\"\n\t\"errors\"\n\t\"io\"\n\t\"log\"\n\t\"net/http\"\n\n\t\"crapi.proj/goservice/api/models\"\n\t\"crapi.proj/goservice/api/responses\"\n)"
+    },
+    {
+      "id": 4,
+      "vulnerability_name": "Create NoOperatorBody middleware — defense-in-depth rejection of MongoDB operator keys",
+      "description": "New middleware that reads the request body, restores it for downstream handlers, and returns 400 if the body contains any key starting with '$'. This blocks operator-injection payloads before they reach controller logic.",
+      "file_path": "services/community/api/middlewares/noOperatorBody.go",
+      "mode": "create",
+      "search_code": "",
+      "replace_code": "package middlewares\n\nimport (\n\t\"bytes\"\n\t\"errors\"\n\t\"io\"\n\t\"net/http\"\n\t\"strings\"\n\n\t\"crapi.proj/goservice/api/responses\"\n)\n\n// NoOperatorBody rejects request bodies that contain MongoDB operator keys (any key starting with '$').\nfunc NoOperatorBody(next http.HandlerFunc) http.HandlerFunc {\n\treturn func(w http.ResponseWriter, r *http.Request) {\n\t\tbody, err := io.ReadAll(r.Body)\n\t\tif err != nil {\n\t\t\tresponses.ERROR(w, http.StatusBadRequest, err)\n\t\t\treturn\n\t\t}\n\t\tr.Body = io.NopCloser(bytes.NewBuffer(body))\n\t\tif strings.Contains(string(body), \"\\\"$\") {\n\t\t\tresponses.ERROR(w, http.StatusBadRequest, errors.New(\"request body contains invalid operator\"))\n\t\t\treturn\n\t\t}\n\t\tnext(w, r)\n\t}\n}\n"
+    },
+    {
+      "id": 5,
+      "vulnerability_name": "Wire NoOperatorBody middleware onto the validate-coupon route",
+      "description": "Add the NoOperatorBody middleware to the validate-coupon route so operator-injection payloads are rejected before reaching the controller.",
+      "file_path": "services/community/api/router/routes.go",
+      "search_code": "\tserver.Router.HandleFunc(\"/community/api/v2/coupon/validate-coupon\", middlewares.SetMiddlewareJSON(middlewares.SetMiddlewareAuthentication(controller.ValidateCoupon, server.DB))).Methods(\"POST\", \"OPTIONS\")",
+      "replace_code": "\tserver.Router.HandleFunc(\"/community/api/v2/coupon/validate-coupon\", middlewares.SetMiddlewareJSON(middlewares.SetMiddlewareAuthentication(middlewares.NoOperatorBody(controller.ValidateCoupon), server.DB))).Methods(\"POST\", \"OPTIONS\")"
+    }
+  ],
+  "verification": [
+    {
+      "id": 1,
+      "description": "Operator injection payload must be rejected with 400 — sending {\"coupon_code\": {\"$gt\": \"\"}} must not return a coupon",
+      "curl": "TOKEN=$(curl -s -X POST http://localhost:8888/identity/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"user@example.com\",\"password\":\"Passw0rd\"}' | python3 -c \"import sys,json; print(json.load(sys.stdin).get('token',''))\"); curl -s -w '\\nHTTP_STATUS:%{http_code}' -X POST http://localhost:8888/community/api/v2/coupon/validate-coupon -H 'Content-Type: application/json' -H \"Authorization: Bearer $TOKEN\" -d '{\"coupon_code\":{\"$gt\":\"\"}}'",
+      "expect_status": 400,
+      "expect_body_excludes": "coupon_code"
+    },
+    {
+      "id": 2,
+      "description": "Empty coupon_code must be rejected with 400",
+      "curl": "TOKEN=$(curl -s -X POST http://localhost:8888/identity/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"user@example.com\",\"password\":\"Passw0rd\"}' | python3 -c \"import sys,json; print(json.load(sys.stdin).get('token',''))\"); curl -s -w '\\nHTTP_STATUS:%{http_code}' -X POST http://localhost:8888/community/api/v2/coupon/validate-coupon -H 'Content-Type: application/json' -H \"Authorization: Bearer $TOKEN\" -d '{\"coupon_code\":\"\"}'",
+      "expect_status": 400,
+      "expect_body_contains": "coupon_code is required"
+    },
+    {
+      "id": 3,
+      "description": "Valid coupon code must still return 200",
+      "curl": "TOKEN=$(curl -s -X POST http://localhost:8888/identity/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"user@example.com\",\"password\":\"Passw0rd\"}' | python3 -c \"import sys,json; print(json.load(sys.stdin).get('token',''))\"); curl -s -w '\\nHTTP_STATUS:%{http_code}' -X POST http://localhost:8888/community/api/v2/coupon/validate-coupon -H 'Content-Type: application/json' -H \"Authorization: Bearer $TOKEN\" -d '{\"coupon_code\":\"TRAC075\"}'",
+      "expect_status": 200
+    }
+  ]
+}
