@@ -24,14 +24,14 @@
     {
       "id": 1,
       "description": "Request with number_of_repeats=999 must be rejected with HTTP 400 — serializer bounds enforcement",
-      "curl": "TOKEN=$(curl -s -X POST http://167.99.136.89:8888/identity/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"user@example.com\",\"password\":\"Passw0rd!\"}' | python3 -c \"import sys,json; print(json.load(sys.stdin).get('token',''))\"); curl -s -w '\\nHTTP_STATUS:%{http_code}' -X POST http://167.99.136.89:8888/workshop/api/merchant/contact_mechanic -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' -d '{\"mechanic_api\":\"http://127.0.0.1\",\"repeat_request_if_failed\":true,\"number_of_repeats\":999}'",
+      "curl": "TOKEN=$(curl -s -X POST http://167.99.136.89:8888/identity/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"admin@example.com\",\"password\":\"Admin!123\"}' | python3 -c \"import sys,json; print(json.load(sys.stdin).get('token',''))\"); curl -s -w '\\nHTTP_STATUS:%{http_code}' -X POST http://167.99.136.89:8888/workshop/api/merchant/contact_mechanic -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' -d '{\"mechanic_api\":\"http://127.0.0.1\",\"repeat_request_if_failed\":true,\"number_of_repeats\":999}'",
       "expect_status": 400,
       "expect_body_contains": "number_of_repeats"
     },
     {
       "id": 2,
       "description": "Request with number_of_repeats=0 must also be rejected — min_value=1 enforced",
-      "curl": "TOKEN=$(curl -s -X POST http://167.99.136.89:8888/identity/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"user@example.com\",\"password\":\"Passw0rd!\"}' | python3 -c \"import sys,json; print(json.load(sys.stdin).get('token',''))\"); curl -s -w '\\nHTTP_STATUS:%{http_code}' -X POST http://167.99.136.89:8888/workshop/api/merchant/contact_mechanic -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' -d '{\"mechanic_api\":\"http://127.0.0.1\",\"repeat_request_if_failed\":true,\"number_of_repeats\":0}'",
+      "curl": "TOKEN=$(curl -s -X POST http://167.99.136.89:8888/identity/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"admin@example.com\",\"password\":\"Admin!123\"}' | python3 -c \"import sys,json; print(json.load(sys.stdin).get('token',''))\"); curl -s -w '\\nHTTP_STATUS:%{http_code}' -X POST http://167.99.136.89:8888/workshop/api/merchant/contact_mechanic -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' -d '{\"mechanic_api\":\"http://127.0.0.1\",\"repeat_request_if_failed\":true,\"number_of_repeats\":0}'",
       "expect_status": 400,
       "expect_body_contains": "number_of_repeats"
     }
