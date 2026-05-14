@@ -16,8 +16,8 @@
       "vulnerability_name": "Remove broken view-level repeat guard",
       "description": "The manual bounds check only fired when repeat_request_if_failed=True, leaving number_of_repeats unchecked on the other path. Now that the serializer enforces bounds unconditionally, remove the redundant and incomplete guard.",
       "file_path": "services/workshop/crapi/merchant/views.py",
-      "search_code": "        repeat_request_if_failed = request_data.get(\"repeat_request_if_failed\", False)\n        number_of_repeats = request_data.get(\"number_of_repeats\", 1)\n        if repeat_request_if_failed and number_of_repeats < 1:\n            return Response(\n                {\"message\": messages.MIN_NO_OF_REPEATS_FAILED},\n                status=status.HTTP_503_SERVICE_UNAVAILABLE,\n            )\n        elif repeat_request_if_failed and number_of_repeats > 100:\n            return Response(\n                {\"message\": messages.NO_OF_REPEATS_EXCEEDED},\n                status=status.HTTP_503_SERVICE_UNAVAILABLE,\n            )",
-      "replace_code": "        repeat_request_if_failed = request_data.get(\"repeat_request_if_failed\", False)\n        number_of_repeats = request_data.get(\"number_of_repeats\", 1)"
+      "search_code": "        repeat_request_if_failed = request_data.get(\"repeat_request_if_failed\", False)\n        number_of_repeats = request_data.get(\"number_of_repeats\", 1)\n        if repeat_request_if_failed and number_of_repeats < 1:\n            return Response(\n                {\"message\": messages.MIN_NO_OF_REPEATS_FAILED},\n                status=status.HTTP_503_SERVICE_UNAVAILABLE,\n            )\n        elif repeat_request_if_failed and number_of_repeats > 100:\n            return Response(\n                {\"message\": messages.NO_OF_REPEATS_EXCEEDED},\n                status=status.HTTP_503_SERVICE_UNAVAILABLE,\n            )\n\n        repeat_count = 0",
+      "replace_code": "        repeat_request_if_failed = request_data.get(\"repeat_request_if_failed\", False)\n        number_of_repeats = request_data.get(\"number_of_repeats\", 1)\n\n        repeat_count = 0"
     }
   ],
   "verification": [
