@@ -1,0 +1,39 @@
+{
+  "vulnerability": "API4-2023",
+  "owasp_tag": "Unrestricted Resource Consumption",
+  "subcategory": "Unbounded number_of_repeats Causes DoS",
+  "steps": [
+    {
+      "id": 1,
+      "vulnerability_name": "Add bounds to number_of_repeats in serializer",
+      "description": "Enforce min/max on number_of_repeats at the input validation layer so no integer outside 1-10 can reach business logic",
+      "file_path": "services/workshop/crapi/merchant/serializers.py",
+      "search_code": "    number_of_repeats = serializers.IntegerField(required=False)",
+      "replace_code": "    number_of_repeats = serializers.IntegerField(required=False, min_value=1, max_value=10)"
+    },
+    {
+      "id": 2,
+      "vulnerability_name": "Remove broken view-level repeat guard",
+      "description": "The manual bounds check only fired when repeat_request_if_failed=True, leaving number_of_repeats unchecked on the other path. Now that the serializer enforces bounds unconditionally, remove the redundant and incomplete guard.",
+      "file_path": "services/workshop/crapi/merchant/views.py",
+      "search_code": "        repeat_request_if_failed = request_data.get(\"repeat_request_if_failed\", False)\n        number_of_repeats = request_data.get(\"number_of_repeats\", 1)\n        if repeat_request_if_failed and number_of_repeats < 1:\n            return Response(\n                {\"message\": messages.MIN_NO_OF_REPEATS_FAILED},\n                status=status.HTTP_503_SERVICE_UNAVAILABLE,\n            )\n        elif repeat_request_if_failed and number_of_repeats > 100:\n            return Response(\n                {\"message\": messages.NO_OF_REPEATS_EXCEEDED},\n                status=status.HTTP_503_SERVICE_UNAVAILABLE,\n            )",
+      "replace_code": "        repeat_request_if_failed = request_data.get(\"repeat_request_if_failed\", False)\n        number_of_repeats = request_data.get(\"number_of_repeats\", 1)"
+    }
+  ],
+  "verification": [
+    {
+      "id": 1,
+      "description": "Request with number_of_repeats=999 must be rejected with HTTP 400 — serializer bounds enforcement",
+      "curl": "TOKEN=$(curl -s -X POST http://167.99.136.89:8888/identity/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"user@example.com\",\"password\":\"Passw0rd!\"}' | python3 -c \"import sys,json; print(json.load(sys.stdin).get('token',''))\"); curl -s -w '\\nHTTP_STATUS:%{http_code}' -X POST http://167.99.136.89:8888/workshop/api/merchant/contact_mechanic -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' -d '{\"mechanic_api\":\"http://127.0.0.1\",\"repeat_request_if_failed\":true,\"number_of_repeats\":999}'",
+      "expect_status": 400,
+      "expect_body_contains": "number_of_repeats"
+    },
+    {
+      "id": 2,
+      "description": "Request with number_of_repeats=0 must also be rejected — min_value=1 enforced",
+      "curl": "TOKEN=$(curl -s -X POST http://167.99.136.89:8888/identity/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"user@example.com\",\"password\":\"Passw0rd!\"}' | python3 -c \"import sys,json; print(json.load(sys.stdin).get('token',''))\"); curl -s -w '\\nHTTP_STATUS:%{http_code}' -X POST http://167.99.136.89:8888/workshop/api/merchant/contact_mechanic -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' -d '{\"mechanic_api\":\"http://127.0.0.1\",\"repeat_request_if_failed\":true,\"number_of_repeats\":0}'",
+      "expect_status": 400,
+      "expect_body_contains": "number_of_repeats"
+    }
+  ]
+}
