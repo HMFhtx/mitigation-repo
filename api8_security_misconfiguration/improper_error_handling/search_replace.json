@@ -1,6 +1,6 @@
 {
-  "vulnerability": "API3-2023",
-  "owasp_tag": "Excessive Data Exposure",
+  "vulnerability": "API8-2023",
+  "owasp_tag": "Security Misconfiguration",
   "subcategory": "Improper Error Handling",
   "steps": [
     {
